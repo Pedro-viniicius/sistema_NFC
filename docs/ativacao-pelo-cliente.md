@@ -14,10 +14,10 @@ Nada muda no cartão físico: o QR Code e o chip NFC continuam contendo só a UR
    |---|---|
    | `ATENDIMENTO_WHATSAPP` | WhatsApp de atendimento, com DDD. É para ele que vai o botão "Precisa trocar o link? Fale com a gente". |
    | `RESPONSAVEL_DADOS_NOME` | Nome ou razão social de quem responde pelos dados pessoais. |
-   | `RESPONSAVEL_DADOS_DOCUMENTO` | CNPJ ou CPF (ex.: `CNPJ 00.000.000/0001-00`). |
    | `RESPONSAVEL_DADOS_EMAIL` | E-mail para pedidos sobre dados pessoais. |
+   | `RESPONSAVEL_DADOS_DOCUMENTO` | **Opcional.** CNPJ ou CPF (ex.: `CNPJ 00.000.000/0001-00`). A página é pública: só informe se quiser o documento exposto nela. |
 
-   Sem as quatro, a opção não pode ser ligada em nenhum lote, e os cartões continuam como sempre.
+   Sem as três primeiras, a opção não pode ser ligada em nenhum lote, e os cartões continuam como sempre.
 
 2. Na página do lote, em **Ativação pelo cliente**, clique em **Ligar ativação pelo cliente**.
 

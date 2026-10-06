@@ -67,7 +67,7 @@ revise o SQL em `drizzle/` e aplique com `pnpm db:migrate`.
 | `AUTH_SECRET` | Segredo que assina a sessão do painel. Mínimo 32 caracteres (`openssl rand -base64 48`). |
 | `NEXT_PUBLIC_APP_URL` | Domínio canônico dos cartões, ex.: `https://go.meudominio.com`. **É o que vai impresso no QR e gravado no NFC.** |
 | `ATENDIMENTO_WHATSAPP` | WhatsApp de atendimento (com DDD), usado na ativação pelo cliente. |
-| `RESPONSAVEL_DADOS_NOME`, `RESPONSAVEL_DADOS_DOCUMENTO`, `RESPONSAVEL_DADOS_EMAIL` | Quem responde pelos dados pessoais dos contatos (aparece em "Como usamos seus dados"). Sem estas e a anterior, a ativação pelo cliente não pode ser ligada. |
+| `RESPONSAVEL_DADOS_NOME`, `RESPONSAVEL_DADOS_DOCUMENTO`, `RESPONSAVEL_DADOS_EMAIL` | Quem responde pelos dados pessoais dos contatos (aparece em "Como usamos seus dados"). Sem o WhatsApp, o nome e o e-mail, a ativação pelo cliente não pode ser ligada; o documento é opcional. |
 | `BLOB_READ_WRITE_TOKEN` | Acesso ao Vercel Blob, onde ficam os PDFs dos templates de impressão. Criada pela Vercel ao conectar o Blob store. Opcional em `pnpm dev` (sem ela, os PDFs vão para `.armazenamento-local/`). |
 
 `NEXT_PUBLIC_APP_URL` é fixada no momento do build: se mudar, faça um novo deploy. Em produção o sistema
@@ -452,7 +452,7 @@ o sistema não finge que sabe. A contagem é feita depois da resposta, para não
 
 ## Testes
 
-`pnpm test` roda 438 testes contra um PostgreSQL em memória (PGlite) com as migrações reais:
+`pnpm test` roda 443 testes contra um PostgreSQL em memória (PGlite) com as migrações reais:
 
 - geração e validação de código (formato, alfabeto, unicidade, rejeição de inválidos);
 - URL canônica e configuração de domínio;
@@ -469,7 +469,7 @@ o sistema não finge que sabe. A contagem é feita depois da resposta, para não
   pacote com arte pesada;
 - exclusão de lote: apaga lote e cartões, exige confirmação e não afeta outros lotes;
 - cenário final: destino muda, cartão físico não;
-- ativação pelo cliente (66 testes): WhatsApp, links do Instagram e do Google, contato obrigatório, abrir a
+- ativação pelo cliente (71 testes): WhatsApp, links do Instagram e do Google, contato obrigatório, abrir a
   página não altera nada, cartão ativado não muda pela página pública, duas ativações simultâneas, limite de
   tentativas, campo-isca, CSV protegido contra fórmulas e ativação pelo painel inalterada;
 - templates de impressão (148 testes, com a biblioteca de PDF de verdade e arquivos reais em

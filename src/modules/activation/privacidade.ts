@@ -25,7 +25,7 @@ export function textoDePrivacidade(configuracao: ConfiguracaoDeAtivacao): SecaoD
     {
       titulo: "Quem cuida dos seus dados",
       paragrafos: [
-        `${responsavel.nome}, ${responsavel.documento}. Para falar sobre os seus dados, escreva para ${responsavel.email} ou chame no WhatsApp ${whatsapp}.`,
+        `${responsavel.nome}${responsavel.documento ? `, ${responsavel.documento}` : ""}. Para falar sobre os seus dados, escreva para ${responsavel.email} ou chame no WhatsApp ${whatsapp}.`,
       ],
     },
     {

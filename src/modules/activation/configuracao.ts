@@ -8,8 +8,8 @@ export interface ConfiguracaoDeAtivacao {
   responsavel: {
     /** Nome ou razão social. */
     nome: string;
-    /** CNPJ ou CPF. */
-    documento: string;
+    /** CNPJ ou CPF. Opcional: quando não é informado, o texto de privacidade sai sem ele. */
+    documento: string | null;
     email: string;
   };
 }
@@ -25,7 +25,11 @@ function ler(ambiente: NodeJS.ProcessEnv, variavel: string): string {
   return ambiente[variavel]?.trim() ?? "";
 }
 
-/** O que falta configurar para a ativação pelo cliente poder ser ligada. Lista vazia = tudo certo. */
+/**
+ * O que falta configurar para a ativação pelo cliente poder ser ligada. Lista vazia = tudo certo.
+ * WhatsApp, nome e e-mail são obrigatórios; o CNPJ/CPF é opcional (a página é pública, e nem todo
+ * responsável quer o próprio CPF exposto nela).
+ */
 export function pendenciasDaConfiguracao(ambiente: NodeJS.ProcessEnv = process.env): string[] {
   const pendencias: string[] = [];
   const whatsapp = ler(ambiente, VARIAVEIS_DA_ATIVACAO.whatsapp);
@@ -35,9 +39,6 @@ export function pendenciasDaConfiguracao(ambiente: NodeJS.ProcessEnv = process.e
   }
   if (!ler(ambiente, VARIAVEIS_DA_ATIVACAO.nome)) {
     pendencias.push(`${VARIAVEIS_DA_ATIVACAO.nome} (nome ou razão social de quem responde pelos dados)`);
-  }
-  if (!ler(ambiente, VARIAVEIS_DA_ATIVACAO.documento)) {
-    pendencias.push(`${VARIAVEIS_DA_ATIVACAO.documento} (CNPJ ou CPF)`);
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ler(ambiente, VARIAVEIS_DA_ATIVACAO.email))) {
     pendencias.push(`${VARIAVEIS_DA_ATIVACAO.email} (e-mail para pedidos sobre dados pessoais)`);
@@ -54,7 +55,7 @@ export function obterConfiguracaoDeAtivacao(ambiente: NodeJS.ProcessEnv = proces
     whatsappDeAtendimento: whatsapp.numero,
     responsavel: {
       nome: ler(ambiente, VARIAVEIS_DA_ATIVACAO.nome),
-      documento: ler(ambiente, VARIAVEIS_DA_ATIVACAO.documento),
+      documento: ler(ambiente, VARIAVEIS_DA_ATIVACAO.documento) || null,
       email: ler(ambiente, VARIAVEIS_DA_ATIVACAO.email),
     },
   };
