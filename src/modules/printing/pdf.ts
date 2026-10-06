@@ -5,7 +5,7 @@
 import { PDFDocument, cmyk, type PDFEmbeddedPage, type PDFPage } from "pdf-lib";
 import { ErroDeDominio } from "@/lib/erros";
 import { gerarMatrizDoQr, type MatrizDoQr } from "@/modules/qr/gerar";
-import { GLIFOS_DO_CODIGO, PASTA_DOS_MODELOS, carregarArteDoModelo } from "./arquivos-do-modelo";
+import { GLIFOS_DO_CODIGO, carregarArteDoModelo, descricaoDaArte } from "./arquivos-do-modelo";
 import { desenharQr } from "./desenho-do-qr";
 import {
   MODULO_MINIMO_MM,
@@ -30,38 +30,64 @@ function emMm(pontos: number): string {
   return pontosParaMm(pontos).toFixed(2).replace(".", ",");
 }
 
-/** Abre a arte fixa e confere se ela tem exatamente o tamanho do modelo. A arte nunca é redimensionada. */
-async function abrirArte(modelo: ModeloDeImpressao, geometria: GeometriaDoModelo): Promise<PDFPage> {
-  const caminho = `${PASTA_DOS_MODELOS}/${modelo.arquivo}`;
-  const bytes = await carregarArteDoModelo(modelo);
-
-  let arte: PDFDocument;
-  try {
-    arte = await PDFDocument.load(bytes);
-  } catch {
-    throw falha(`O arquivo ${caminho} não é um PDF válido.`);
-  }
-  if (arte.getPageCount() !== 1) {
-    throw falha(`O arquivo ${caminho} deve ter exatamente uma página (tem ${arte.getPageCount()}).`);
-  }
-
-  const pagina = arte.getPage(0);
-  const { width, height } = pagina.getSize();
-  if (
-    Math.abs(width - geometria.larguraPt) > TOLERANCIA_PT ||
-    Math.abs(height - geometria.alturaPt) > TOLERANCIA_PT
-  ) {
-    throw falha(
-      `A arte ${caminho} mede ${emMm(width)} × ${emMm(height)} mm, mas o modelo ${modelo.nome} ` +
-        `espera ${emMm(geometria.larguraPt)} × ${emMm(geometria.alturaPt)} mm (com sangria).`,
-    );
-  }
-  return pagina;
+export interface ArteAberta {
+  pagina: PDFPage;
+  /** Falso quando a arte veio no tamanho final (sem sangria): ela é posicionada dentro do corte. */
+  comSangria: boolean;
 }
 
-/** Confere, sem gerar nada, se a arte do modelo existe, é um PDF de uma página e tem o tamanho certo. */
-export async function verificarArteDoModelo(modelo: ModeloDeImpressao): Promise<void> {
-  await abrirArte(modelo, geometriaDoModelo(modelo));
+function mesmoTamanho(largura: number, altura: number, esperado: { largura: number; altura: number }): boolean {
+  return (
+    Math.abs(largura - esperado.largura) <= TOLERANCIA_PT && Math.abs(altura - esperado.altura) <= TOLERANCIA_PT
+  );
+}
+
+/**
+ * Abre a arte fixa e confere o tamanho. A arte NUNCA é redimensionada: precisa ter exatamente o
+ * tamanho da arte completa (com sangria) ou o tamanho final (sem sangria).
+ */
+async function abrirArte(modelo: ModeloDeImpressao, geometria: GeometriaDoModelo): Promise<ArteAberta> {
+  const descricao = descricaoDaArte(modelo);
+  const bytes = await carregarArteDoModelo(modelo);
+
+  // A biblioteca tolera arquivos danificados ao abrir e só falha ao ler as páginas:
+  // por isso toda a leitura fica protegida, e qualquer falha vira uma mensagem clara.
+  let paginas: number;
+  let pagina: PDFPage;
+  let width: number;
+  let height: number;
+  try {
+    const arte = await PDFDocument.load(bytes);
+    paginas = arte.getPageCount();
+    pagina = arte.getPage(0);
+    ({ width, height } = pagina.getSize());
+  } catch {
+    throw falha(`O arquivo da ${descricao} não é um PDF válido (ou está protegido por senha).`);
+  }
+  if (paginas !== 1) {
+    throw falha(`A ${descricao} deve ter exatamente uma página (tem ${paginas}).`);
+  }
+
+  if (mesmoTamanho(width, height, { largura: geometria.larguraPt, altura: geometria.alturaPt })) {
+    return { pagina, comSangria: true };
+  }
+  if (mesmoTamanho(width, height, geometria.corte)) {
+    return { pagina, comSangria: false };
+  }
+  throw falha(
+    `A ${descricao} mede ${emMm(width)} × ${emMm(height)} mm. O modelo ${modelo.nome} aceita ` +
+      `${emMm(geometria.larguraPt)} × ${emMm(geometria.alturaPt)} mm (com sangria) ou ` +
+      `${emMm(geometria.corte.largura)} × ${emMm(geometria.corte.altura)} mm (sem sangria).`,
+  );
+}
+
+/**
+ * Confere, sem gerar nada, se a arte do modelo existe, é um PDF de uma página e tem um tamanho aceito.
+ * Informa se a arte tem sangria.
+ */
+export async function verificarArteDoModelo(modelo: ModeloDeImpressao): Promise<{ comSangria: boolean }> {
+  const { comSangria } = await abrirArte(modelo, geometriaDoModelo(modelo));
+  return { comSangria };
 }
 
 /** Confere se o QR do cartão cabe na área do modelo com módulos de tamanho legível. */
@@ -92,6 +118,7 @@ function desenharCodigo(pagina: PDFPage, codigo: string, modelo: ModeloDeImpress
 function adicionarPagina(
   documento: PDFDocument,
   arte: PDFEmbeddedPage,
+  arteComSangria: boolean,
   codigo: string,
   modelo: ModeloDeImpressao,
   geometria: GeometriaDoModelo,
@@ -104,7 +131,11 @@ function adicionarPagina(
   pagina.setTrimBox(corte.x, corte.y, corte.largura, corte.altura);
 
   // 1) arte fixa, em tamanho real; 2) QR do cartão; 3) código do cartão.
-  pagina.drawPage(arte, { x: 0, y: 0, width: geometria.larguraPt, height: geometria.alturaPt });
+  // Arte sem sangria entra exatamente dentro do corte; a faixa de sangria fica sem impressão.
+  const areaDaArte = arteComSangria
+    ? { x: 0, y: 0, width: geometria.larguraPt, height: geometria.alturaPt }
+    : { x: corte.x, y: corte.y, width: corte.largura, height: corte.altura };
+  pagina.drawPage(arte, areaDaArte);
   desenharQr(pagina, matriz, geometria.qr);
   desenharCodigo(pagina, codigo, modelo, geometria);
 }
@@ -127,10 +158,11 @@ export async function gerarPdfDeImpressao(
   const geometria = geometriaDoModelo(modelo);
   const documento = await PDFDocument.create();
   // A arte é embutida uma única vez e reutilizada em todas as páginas.
-  const arte = await documento.embedPage(await abrirArte(modelo, geometria));
+  const aberta = await abrirArte(modelo, geometria);
+  const arte = await documento.embedPage(aberta.pagina);
 
   for (const codigo of codigos) {
-    adicionarPagina(documento, arte, codigo, modelo, geometria);
+    adicionarPagina(documento, arte, aberta.comSangria, codigo, modelo, geometria);
   }
 
   documento.setTitle(titulo);

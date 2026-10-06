@@ -10,7 +10,7 @@ import type { Banco } from "@/db/tipos";
 import { ErroDeDominio } from "@/lib/erros";
 import { mensagemDoErro, registrarLog } from "@/lib/log";
 import { encerrarSessao, exigirAdmin, type AdminAutenticado } from "@/modules/auth/sessao";
-import { criarLote, esquemaDeNovoLote } from "@/modules/batches/servico";
+import { criarLote, esquemaDeNovoLote, excluirLote, type LoteExcluido } from "@/modules/batches/servico";
 import { resumirCartao, type CartaoResumo } from "@/modules/cards/apresentacao";
 import { extrairCodigo } from "@/modules/cards/codigo";
 import { TAMANHO_MAXIMO_URL } from "@/modules/cards/destino";
@@ -22,6 +22,13 @@ import {
   desativarCartao,
 } from "@/modules/cards/servico";
 import { TIPOS_DESTINO, ehTipoDestino } from "@/modules/cards/tipos";
+import {
+  TAMANHO_MAXIMO_DA_ARTE_BYTES,
+  esquemaDaConfiguracaoDaArte,
+  removerArte,
+  salvarArte,
+} from "@/modules/printing/artes";
+import { obterModeloPorSlug, type ModeloDeImpressao } from "@/modules/printing/modelos";
 import type { EstadoDeFormulario, ResultadoDaAcao } from "./tipos-de-acao";
 
 const ERRO_INESPERADO = "Ocorreu um erro inesperado. Tente novamente.";
@@ -147,6 +154,99 @@ export async function criarLoteAction(
 
   atualizarPainel();
   redirect(`/admin/lotes/${identificador}`);
+}
+
+export async function excluirLoteAction(
+  _anterior: EstadoDeFormulario,
+  formulario: FormData,
+): Promise<EstadoDeFormulario> {
+  const admin = await exigirAdmin();
+  const identificador = formulario.get("identificador");
+  const confirmacao = formulario.get("confirmacao");
+
+  let excluido: LoteExcluido;
+  try {
+    if (typeof identificador !== "string" || typeof confirmacao !== "string") {
+      throw new ErroDeDominio("ENTRADA_INVALIDA", "Dados inválidos.");
+    }
+    excluido = await excluirLote(obterBanco(), identificador, confirmacao);
+    registrarLog("aviso", "admin.lote_excluido", {
+      lote: excluido.identificador,
+      cartoes: excluido.cartoesExcluidos,
+      adminId: admin.id,
+    });
+  } catch (erro) {
+    return { erro: mensagemParaOAdmin(erro) };
+  }
+
+  atualizarPainel();
+  redirect(`/admin/lotes?apagado=${excluido.identificador}&cartoes=${excluido.cartoesExcluidos}`);
+}
+
+function modeloDoFormulario(formulario: FormData): ModeloDeImpressao {
+  const modelo = obterModeloPorSlug(formulario.get("modelo"));
+  if (!modelo) throw new ErroDeDominio("MODELO_NAO_ENCONTRADO", "Modelo de impressão desconhecido.");
+  return modelo;
+}
+
+export async function enviarArteAction(
+  _anterior: EstadoDeFormulario,
+  formulario: FormData,
+): Promise<EstadoDeFormulario> {
+  const admin = await exigirAdmin();
+  try {
+    const modelo = modeloDoFormulario(formulario);
+    const arquivo = formulario.get("arquivo");
+    if (!(arquivo instanceof File) || arquivo.size === 0) {
+      throw new ErroDeDominio("ENTRADA_INVALIDA", "Selecione o arquivo PDF da arte.");
+    }
+    if (arquivo.size > TAMANHO_MAXIMO_DA_ARTE_BYTES) {
+      throw new ErroDeDominio("ENTRADA_INVALIDA", "O arquivo é maior que o limite de 2 MB.");
+    }
+    const cor = formulario.get("corDoCodigo");
+
+    const { comSangria } = await salvarArte(obterBanco(), modelo, {
+      bytes: new Uint8Array(await arquivo.arrayBuffer()),
+      nomeDoArquivo: arquivo.name,
+      ...esquemaDaConfiguracaoDaArte.parse({
+        qrXMm: formulario.get("qrXMm"),
+        qrYMm: formulario.get("qrYMm"),
+        qrTamanhoMm: formulario.get("qrTamanhoMm"),
+        corDoCodigo: cor === "preto" || cor === "branco" ? cor : null,
+      }),
+    });
+    registrarLog("info", "admin.arte_enviada", {
+      modelo: modelo.slug,
+      bytes: arquivo.size,
+      comSangria,
+      adminId: admin.id,
+    });
+    atualizarPainel();
+    return {
+      sucesso: `Arte do modelo ${modelo.nome} salva. Confira a amostra antes de gerar arquivos para a gráfica.`,
+      aviso: comSangria
+        ? undefined
+        : "A arte foi enviada no tamanho final, sem sangria: pode sobrar uma borda branca fina depois do corte.",
+    };
+  } catch (erro) {
+    return { erro: mensagemParaOAdmin(erro) };
+  }
+}
+
+export async function restaurarArteAction(
+  _anterior: EstadoDeFormulario,
+  formulario: FormData,
+): Promise<EstadoDeFormulario> {
+  const admin = await exigirAdmin();
+  try {
+    const modelo = modeloDoFormulario(formulario);
+    const removida = await removerArte(obterBanco(), modelo);
+    registrarLog("info", "admin.arte_restaurada", { modelo: modelo.slug, removida, adminId: admin.id });
+    atualizarPainel();
+    return { sucesso: `O modelo ${modelo.nome} voltou a usar a arte padrão do sistema.` };
+  } catch (erro) {
+    return { erro: mensagemParaOAdmin(erro) };
+  }
 }
 
 export async function sairAction(): Promise<void> {

@@ -7,6 +7,7 @@ const LINKS = [
   { href: "/admin", rotulo: "Painel", exato: true },
   { href: "/admin/cartoes", rotulo: "Cartões", exato: false },
   { href: "/admin/lotes", rotulo: "Lotes", exato: false },
+  { href: "/admin/artes", rotulo: "Artes", exato: false },
 ] as const;
 
 export function LinksDeNavegacao() {

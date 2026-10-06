@@ -6,6 +6,7 @@ import { ErroDeDominio } from "@/lib/erros";
 import { buscarLotePorId, buscarLotePorIdentificador } from "@/modules/batches/servico";
 import { normalizarCodigo } from "@/modules/cards/codigo";
 import { buscarCartaoPorCodigo, listarCartoesDoLote } from "@/modules/cards/repositorio";
+import { obterModeloEfetivo } from "./artes";
 import type { ModeloDeImpressao } from "./modelos";
 import { gerarPdfDoCartao } from "./pdf";
 import { escolherModelo, nomeDoPdfDoCartao, planejarPacote, type PacoteDeProducao } from "./producao";
@@ -38,7 +39,10 @@ export async function gerarArteDoCartao(
   if (!cartao) throw new ErroDeDominio("CARTAO_NAO_ENCONTRADO", "Cartão não encontrado.");
 
   const lote = cartao.loteId ? await buscarLotePorId(db, cartao.loteId) : null;
-  const modelo = escolherModelo(slugDoModelo, ...tiposParaAArteDoCartao(cartao, lote));
+  const modelo = await obterModeloEfetivo(
+    db,
+    escolherModelo(slugDoModelo, ...tiposParaAArteDoCartao(cartao, lote)),
+  );
   return {
     nomeDoArquivo: nomeDoPdfDoCartao(modelo, cartao.codigo),
     modelo,
@@ -56,16 +60,25 @@ export async function carregarLoteParaProducao(db: Banco, identificador: string)
   return { lote, cartoes: await listarCartoesDoLote(db, lote.id) };
 }
 
+/** Modelo que vale para o lote: o pedido (ou o do tipo do lote), já com a arte enviada pelo painel, se houver. */
+export function resolverModeloDoLote(
+  db: Banco,
+  lote: Pick<Lote, "tipo">,
+  slugDoModelo?: string | null,
+): Promise<ModeloDeImpressao> {
+  return obterModeloEfetivo(db, escolherModelo(slugDoModelo, lote.tipo));
+}
+
 /** Plano validado do pacote de um lote (ou de uma de suas partes). */
 export function planejarPacoteDoLote(
   { lote, cartoes }: LoteParaProducao,
-  slugDoModelo?: string | null,
+  modelo: ModeloDeImpressao,
   parte?: number,
 ): Promise<PacoteDeProducao> {
   return planejarPacote({
     identificadorDoLote: lote.identificador,
     codigos: cartoes.map((cartao) => cartao.codigo),
-    modelo: escolherModelo(slugDoModelo, lote.tipo),
+    modelo,
     parte,
   });
 }

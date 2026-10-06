@@ -9,7 +9,11 @@ import {
   gerarPdfDoPacote,
   gerarZipDoPacote,
 } from "@/modules/printing/producao";
-import { carregarLoteParaProducao, planejarPacoteDoLote } from "@/modules/printing/servico";
+import {
+  carregarLoteParaProducao,
+  planejarPacoteDoLote,
+  resolverModeloDoLote,
+} from "@/modules/printing/servico";
 import { respostaDeDownload, respostaDeErroDeDownload } from "@/app/admin/downloads";
 
 const ARQUIVOS = ["pdf", "csv", "zip"] as const;
@@ -32,9 +36,11 @@ export async function GET(
 
   try {
     const { identificador } = await contexto.params;
-    const lote = await carregarLoteParaProducao(obterBanco(), identificador);
+    const db = obterBanco();
+    const lote = await carregarLoteParaProducao(db, identificador);
+    const modelo = await resolverModeloDoLote(db, lote.lote, parametros.get("modelo"));
     // O plano valida tudo antes de qualquer arquivo ser gerado.
-    const pacote = await planejarPacoteDoLote(lote, parametros.get("modelo"), parte);
+    const pacote = await planejarPacoteDoLote(lote, modelo, parte);
 
     registrarLog("info", "impressao.arquivo_gerado", {
       pacote: pacote.nome,

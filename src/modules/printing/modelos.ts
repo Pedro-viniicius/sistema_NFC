@@ -19,13 +19,22 @@ export interface PosicaoDoCodigo {
   cor: "preto" | "branco";
 }
 
+/** Arte enviada pelo painel, que substitui o arquivo padrão de templates/. */
+export interface ArteEnviada {
+  bytes: Uint8Array;
+  nomeDoArquivo: string;
+  enviadaEm: Date;
+}
+
 export interface ModeloDeImpressao {
   tipo: TipoDestino;
   /** Usado nos nomes de arquivo (ex.: google-K8M4T2.pdf). */
   slug: string;
   nome: string;
-  /** PDF de uma página com a arte fixa, dentro de templates/. */
+  /** PDF de uma página com a arte fixa padrão, dentro de templates/. */
   arquivo: string;
+  /** Se presente, é esta a arte usada (enviada pelo painel), no lugar de `arquivo`. */
+  arteEnviada?: ArteEnviada;
   /** Tamanho final do adesivo, depois do corte. */
   larguraFinalMm: number;
   alturaFinalMm: number;
@@ -43,11 +52,28 @@ export interface ModeloDeImpressao {
   codigo: PosicaoDoCodigo | null;
 }
 
+export const TAMANHO_DO_CODIGO_PT = 6.5;
+/** Distância entre a base da área do QR e a linha de base do código impresso. */
+const DISTANCIA_DO_CODIGO_MM = 4.2;
+
+/** O código fica sempre centralizado logo abaixo da área do QR. */
+export function posicaoDoCodigo(
+  qr: ModeloDeImpressao["qr"],
+  cor: PosicaoDoCodigo["cor"],
+): PosicaoDoCodigo {
+  return {
+    xCentroMm: qr.xMm + qr.tamanhoMm / 2,
+    linhaDeBaseMm: qr.yMm + qr.tamanhoMm + DISTANCIA_DO_CODIGO_MM,
+    tamanhoPt: TAMANHO_DO_CODIGO_PT,
+    cor,
+  };
+}
+
 // Os dois modelos compartilham o formato físico: 86 × 54 mm com 3 mm de sangria (arte de 92 × 60 mm).
 const FORMATO_DO_ADESIVO = { larguraFinalMm: 86, alturaFinalMm: 54, sangriaMm: 3 } as const;
 const QR_PADRAO = { xMm: 50, yMm: 6, tamanhoMm: 30 } as const;
 
-const MODELOS = {
+const MODELOS: Record<"GOOGLE" | "INSTAGRAM", ModeloDeImpressao> = {
   GOOGLE: {
     tipo: "GOOGLE",
     slug: "google",
@@ -55,7 +81,7 @@ const MODELOS = {
     arquivo: "google.pdf",
     ...FORMATO_DO_ADESIVO,
     qr: QR_PADRAO,
-    codigo: { xCentroMm: 65, linhaDeBaseMm: 40.2, tamanhoPt: 6.5, cor: "preto" },
+    codigo: posicaoDoCodigo(QR_PADRAO, "preto"),
   },
   INSTAGRAM: {
     tipo: "INSTAGRAM",
@@ -64,9 +90,9 @@ const MODELOS = {
     arquivo: "instagram.pdf",
     ...FORMATO_DO_ADESIVO,
     qr: QR_PADRAO,
-    codigo: { xCentroMm: 65, linhaDeBaseMm: 40.2, tamanhoPt: 6.5, cor: "branco" },
+    codigo: posicaoDoCodigo(QR_PADRAO, "branco"),
   },
-} as const satisfies Partial<Record<TipoDestino, ModeloDeImpressao>>;
+};
 
 export function listarModelos(): ModeloDeImpressao[] {
   return Object.values(MODELOS);
@@ -74,7 +100,7 @@ export function listarModelos(): ModeloDeImpressao[] {
 
 /** Modelo do tipo informado, ou null se o tipo não tiver arte de impressão (ex.: "Outro link"). */
 export function obterModelo(tipo: TipoDestino | null | undefined): ModeloDeImpressao | null {
-  return tipo && tipo in MODELOS ? MODELOS[tipo as keyof typeof MODELOS] : null;
+  return tipo === "GOOGLE" || tipo === "INSTAGRAM" ? MODELOS[tipo] : null;
 }
 
 export function obterModeloPorSlug(slug: unknown): ModeloDeImpressao | null {
@@ -148,7 +174,10 @@ export function validarModelo(modelo: ModeloDeImpressao): string[] {
       codigo.linhaDeBaseMm > margem &&
       codigo.linhaDeBaseMm < alturaFinalMm - margem;
     if (!dentro || codigo.tamanhoPt <= 0) {
-      problemas.push(`A posição do código do cartão no modelo ${modelo.nome} está fora da área segura.`);
+      problemas.push(
+        `Não há espaço para o código do cartão abaixo do QR Code no modelo ${modelo.nome}. ` +
+          "Suba o QR Code ou escolha não imprimir o código.",
+      );
     }
   }
   return problemas;

@@ -1,6 +1,8 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  customType,
+  doublePrecision,
   index,
   integer,
   pgTable,
@@ -93,6 +95,39 @@ export const administradores = pgTable("administradores", {
   criadoEm: dataHora("criado_em").notNull().defaultNow(),
 });
 
+const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
+  dataType: () => "bytea",
+  toDriver: (valor) => Buffer.from(valor),
+});
+
+/**
+ * Arte de impressão enviada pelo painel, uma por modelo. Substitui a arte padrão de templates/.
+ * Fica no banco porque a Vercel não tem disco persistente. Sem linha para o tipo = arte padrão.
+ */
+export const artesDeImpressao = pgTable(
+  "artes_de_impressao",
+  {
+    tipo: text("tipo").$type<TipoDestino>().primaryKey(),
+    /** PDF de uma página com a arte fixa. */
+    pdf: bytea("pdf").notNull(),
+    nomeDoArquivo: text("nome_do_arquivo").notNull(),
+    tamanhoBytes: integer("tamanho_bytes").notNull(),
+    /** Área do QR (com zona de silêncio), em mm a partir do canto superior esquerdo do corte. */
+    qrXMm: doublePrecision("qr_x_mm").notNull(),
+    qrYMm: doublePrecision("qr_y_mm").notNull(),
+    qrTamanhoMm: doublePrecision("qr_tamanho_mm").notNull(),
+    /** Cor do código impresso abaixo do QR; nulo = não imprimir o código. */
+    corDoCodigo: text("cor_do_codigo").$type<"preto" | "branco">(),
+    enviadoEm: dataHora("enviado_em").notNull().defaultNow(),
+  },
+  (t) => [
+    check("artes_tipo_com_modelo", sql`${t.tipo} in ('GOOGLE', 'INSTAGRAM')`),
+    check("artes_cor_do_codigo_valida", sql`${t.corDoCodigo} is null or ${t.corDoCodigo} in ('preto', 'branco')`),
+    check("artes_qr_tamanho_positivo", sql`${t.qrTamanhoMm} > 0`),
+  ],
+);
+
 export type Cartao = typeof cartoes.$inferSelect;
 export type Lote = typeof lotes.$inferSelect;
 export type Administrador = typeof administradores.$inferSelect;
+export type ArteDeImpressao = typeof artesDeImpressao.$inferSelect;

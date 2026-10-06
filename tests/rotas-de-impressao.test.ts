@@ -21,6 +21,7 @@ vi.mock("@/modules/auth/sessao", () => ({ obterAdminAtual: async () => estado.ad
 import { GET as baixarArteDoCartao } from "@/app/admin/cartoes/[codigo]/impressao/route";
 import { GET as baixarQrDoCartao } from "@/app/admin/cartoes/[codigo]/qr/route";
 import { GET as exportarLote } from "@/app/admin/lotes/[identificador]/exportar/route";
+import { GET as amostraDaArte } from "@/app/admin/artes/[slug]/amostra/route";
 import { GET as baixarDoLote } from "@/app/admin/lotes/[identificador]/grafica/baixar/route";
 
 const URL_PERMANENTE = "https://go.example.com/c/K8M4T2";
@@ -37,6 +38,12 @@ function arte(codigo: string, consulta = ""): Promise<Response> {
 function qr(codigo: string, consulta = ""): Promise<Response> {
   return baixarQrDoCartao(new Request(`https://go.example.com/admin/cartoes/${codigo}/qr${consulta}`), {
     params: Promise.resolve({ codigo }),
+  });
+}
+
+function amostra(slug: string): Promise<Response> {
+  return amostraDaArte(new Request(`https://go.example.com/admin/artes/${slug}/amostra`), {
+    params: Promise.resolve({ slug }),
   });
 }
 
@@ -78,6 +85,7 @@ describe("sem sessão de administrador", () => {
       arte("K8M4T2"),
       arte("K8M4T2", "?modelo=google&ver=1"),
       qr("K8M4T2"),
+      amostra("google"),
       doLote(loteGoogle, "?arquivo=pdf"),
       doLote(loteGoogle, "?arquivo=csv"),
       doLote(loteGoogle, "?arquivo=zip"),
@@ -125,6 +133,21 @@ describe("arte individual do cartão", () => {
     expect((await arte("K8M4T2", "?modelo=tiktok")).status).toBe(422);
     expect((await arte("ZZZZZ9")).status).toBe(404);
     expect((await arte("<script>")).status).toBe(404);
+  });
+});
+
+describe("amostra da arte do modelo", () => {
+  it("abre no navegador com um cartão fictício", async () => {
+    const resposta = await amostra("instagram");
+    expect(resposta.status).toBe(200);
+    expect(resposta.headers.get("Content-Type")).toBe("application/pdf");
+    expect(resposta.headers.get("Content-Disposition")).toBe('inline; filename="amostra-instagram.pdf"');
+    const [pagina] = await lerPdfDeImpressao(await resposta.arrayBuffer());
+    expect(pagina.conteudoDoQr).toBe("https://go.example.com/c/AMSTRA");
+  });
+
+  it("recusa modelo desconhecido", async () => {
+    expect((await amostra("tiktok")).status).toBe(422);
   });
 });
 

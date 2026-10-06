@@ -26,6 +26,13 @@ import { gerarPdfDeImpressao, gerarPdfDoCartao, verificarArteDoModelo, verificar
  */
 export const MAXIMO_DE_CARTOES_POR_PACOTE = 100;
 
+/**
+ * Tamanho máximo que o ZIP pode atingir, com folga em relação ao teto de 4,5 MB da Vercel.
+ * Cada PDF individual carrega a arte inteira; com uma arte pesada, 100 deles não cabem.
+ * Nesse caso o ZIP sai sem a pasta individuais/ (o PDF do lote tem as mesmas páginas).
+ */
+export const LIMITE_DO_ZIP_BYTES = 3.5 * 1024 * 1024;
+
 const FORMATO_DO_IDENTIFICADOR_DO_LOTE = /^lote-\d{4}-\d{3,}$/;
 const NOME_DE_ARQUIVO_SEGURO = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
@@ -227,7 +234,7 @@ export function gerarCsvDeControle(pacote: PacoteDeProducao): string {
   return [COLUNAS_DO_CONTROLE.join(","), ...linhas].join("\r\n") + "\r\n";
 }
 
-export function gerarLeiaMe(pacote: PacoteDeProducao): string {
+export function gerarLeiaMe(pacote: PacoteDeProducao, comIndividuais = true): string {
   const { modelo, itens } = pacote;
   const largura = modelo.larguraFinalMm + 2 * modelo.sangriaMm;
   const altura = modelo.alturaFinalMm + 2 * modelo.sangriaMm;
@@ -245,7 +252,9 @@ export function gerarLeiaMe(pacote: PacoteDeProducao): string {
     "ARQUIVOS",
     `  ${pacote.nome}.pdf   uma página por cartão, na ordem do controle.csv`,
     `  ${NOME_DO_CSV_DE_CONTROLE}   número, código e URL de cada cartão`,
-    "  individuais/   um PDF por cartão (mesma arte do PDF consolidado)",
+    comIndividuais
+      ? "  individuais/   um PDF por cartão (mesma arte do PDF consolidado)"
+      : "  (sem PDFs individuais: a arte é pesada e eles não caberiam no pacote; use o PDF consolidado)",
     "  qr/            QR Code avulso de cada cartão em SVG vetorial",
     "",
     "ESPECIFICAÇÕES DE IMPRESSÃO",
@@ -272,16 +281,27 @@ export async function gerarZipDoPacote(pacote: PacoteDeProducao): Promise<ArrayB
   exigirLimite(pacote);
   const zip = new JSZip();
   const pasta = zip.folder(pacote.nome);
-  const individuais = pasta?.folder("individuais");
-  const qr = pasta?.folder("qr");
-  if (!pasta || !individuais || !qr) throw new Error("Não foi possível montar a estrutura do arquivo ZIP.");
+  if (!pasta) throw new Error("Não foi possível montar a estrutura do arquivo ZIP.");
 
-  pasta.file(`${pacote.nome}.pdf`, await gerarPdfDoPacote(pacote));
+  const pdfDoLote = await gerarPdfDoPacote(pacote);
+  const [primeiro, ...demais] = pacote.itens;
+  const primeiroIndividual = await gerarPdfDoCartao(primeiro.codigo, pacote.modelo);
+  // Os individuais têm todos praticamente o mesmo tamanho: o primeiro serve de medida.
+  const comIndividuais =
+    pdfDoLote.length + primeiroIndividual.length * pacote.itens.length <= LIMITE_DO_ZIP_BYTES;
+
+  pasta.file(`${pacote.nome}.pdf`, pdfDoLote);
   pasta.file(NOME_DO_CSV_DE_CONTROLE, gerarCsvDeControle(pacote));
-  pasta.file(NOME_DO_LEIA_ME, gerarLeiaMe(pacote));
+  pasta.file(NOME_DO_LEIA_ME, gerarLeiaMe(pacote, comIndividuais));
+
+  if (comIndividuais) {
+    pasta.file(`individuais/${primeiro.arquivoPdf}`, primeiroIndividual);
+    for (const item of demais) {
+      pasta.file(`individuais/${item.arquivoPdf}`, await gerarPdfDoCartao(item.codigo, pacote.modelo));
+    }
+  }
   for (const item of pacote.itens) {
-    individuais.file(item.arquivoPdf, await gerarPdfDoCartao(item.codigo, pacote.modelo));
-    qr.file(item.arquivoQr, await gerarQrSvg(item.codigo));
+    pasta.file(`qr/${item.arquivoQr}`, await gerarQrSvg(item.codigo));
   }
 
   return zip.generateAsync({ type: "arraybuffer", compression: "DEFLATE" });

@@ -15,6 +15,13 @@
       "when": 1791296245400,
       "tag": "0001_codigo_do_cartao_imutavel",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791300260401,
+      "tag": "0002_cria_artes_de_impressao",
+      "breakpoints": true
     }
   ]
 }

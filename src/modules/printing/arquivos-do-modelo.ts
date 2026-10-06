@@ -26,8 +26,19 @@ async function lerArte(arquivo: string): Promise<Uint8Array> {
   }
 }
 
-/** Bytes do PDF de arte fixa do modelo. Fica em memória depois da primeira leitura. */
+/** Nome da arte para mensagens ao administrador. */
+export function descricaoDaArte(modelo: ModeloDeImpressao): string {
+  return modelo.arteEnviada
+    ? `arte enviada (${modelo.arteEnviada.nomeDoArquivo})`
+    : `arte padrão (${PASTA_DOS_MODELOS}/${modelo.arquivo})`;
+}
+
+/**
+ * Bytes do PDF de arte fixa do modelo: a arte enviada pelo painel, se houver; senão o arquivo
+ * padrão do repositório (que fica em memória depois da primeira leitura).
+ */
 export function carregarArteDoModelo(modelo: ModeloDeImpressao): Promise<Uint8Array> {
+  if (modelo.arteEnviada) return Promise.resolve(modelo.arteEnviada.bytes);
   let arte = artesCarregadas.get(modelo.arquivo);
   if (!arte) {
     arte = lerArte(modelo.arquivo);

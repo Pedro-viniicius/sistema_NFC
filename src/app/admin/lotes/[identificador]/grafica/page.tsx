@@ -7,6 +7,7 @@ import { ErroDeConfiguracao } from "@/lib/env";
 import { ErroDeDominio } from "@/lib/erros";
 import { exigirAdmin } from "@/modules/auth/sessao";
 import { STATUS_CARTAO, type StatusCartao } from "@/modules/cards/tipos";
+import { obterModeloEfetivo } from "@/modules/printing/artes";
 import { listarModelos, obterModeloPorSlug } from "@/modules/printing/modelos";
 import {
   MAXIMO_DE_CARTOES_POR_PACOTE,
@@ -43,14 +44,17 @@ export default async function PaginaDeArquivosParaGrafica({
   const modeloPedido = (await searchParams).modelo;
   const slugPedido = Array.isArray(modeloPedido) ? modeloPedido[0] : modeloPedido;
 
-  const dados = await carregarLoteParaProducao(obterBanco(), identificador).catch((erro: unknown) => {
+  const db = obterBanco();
+  const dados = await carregarLoteParaProducao(db, identificador).catch((erro: unknown) => {
     if (erro instanceof ErroDeDominio) return null;
     throw erro;
   });
   if (!dados) notFound();
   const { lote, cartoes } = dados;
 
-  const modelo = obterModeloPorSlug(slugPedido) ?? sugerirModelo(lote.tipo);
+  const modeloBase = obterModeloPorSlug(slugPedido) ?? sugerirModelo(lote.tipo);
+  // Já com a arte enviada pelo painel (e a posição do QR dela), se houver.
+  const modelo = modeloBase ? await obterModeloEfetivo(db, modeloBase) : null;
   const partes = totalDePartes(cartoes.length);
   const base = `/admin/lotes/${lote.identificador}/grafica`;
 
@@ -60,7 +64,7 @@ export default async function PaginaDeArquivosParaGrafica({
   if (modelo) {
     try {
       pacotes = await Promise.all(
-        Array.from({ length: partes }, (_, indice) => planejarPacoteDoLote(dados, modelo.slug, indice + 1)),
+        Array.from({ length: partes }, (_, indice) => planejarPacoteDoLote(dados, modelo, indice + 1)),
       );
     } catch (erro) {
       if (!(erro instanceof ErroDeDominio) && !(erro instanceof ErroDeConfiguracao)) throw erro;
@@ -124,7 +128,11 @@ export default async function PaginaDeArquivosParaGrafica({
                 <p className="mt-3 text-sm text-slate-600">
                   Adesivo de {modelo.larguraFinalMm} × {modelo.alturaFinalMm} mm com {modelo.sangriaMm} mm de sangria
                   (arte de {modelo.larguraFinalMm + 2 * modelo.sangriaMm} ×{" "}
-                  {modelo.alturaFinalMm + 2 * modelo.sangriaMm} mm). QR Code de {modelo.qr.tamanhoMm} mm.
+                  {modelo.alturaFinalMm + 2 * modelo.sangriaMm} mm). QR Code de {modelo.qr.tamanhoMm} mm.{" "}
+                  {modelo.arteEnviada ? `Arte enviada: ${modelo.arteEnviada.nomeDoArquivo}.` : "Arte padrão do sistema."}{" "}
+                  <Link href="/admin/artes" className="underline underline-offset-2 hover:text-slate-900">
+                    Trocar arte
+                  </Link>
                 </p>
               ) : (
                 <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -147,7 +155,7 @@ export default async function PaginaDeArquivosParaGrafica({
               descricao={
                 partes > 1
                   ? `Este lote foi dividido em ${partes} partes de até ${MAXIMO_DE_CARTOES_POR_PACOTE} cartões. Baixe todas.`
-                  : "O ZIP completo já inclui o PDF do lote, o CSV, os PDFs individuais e os QR Codes em SVG."
+                  : "O ZIP completo já inclui o PDF do lote, o CSV e os QR Codes em SVG, além dos PDFs individuais quando o tamanho da arte permite."
               }
             >
               <ul className="divide-y divide-slate-100">

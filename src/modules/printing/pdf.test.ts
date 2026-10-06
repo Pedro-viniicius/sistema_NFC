@@ -183,7 +183,7 @@ describe("falhas claras na geração", () => {
   it("recusa arte com tamanho diferente do modelo, em vez de redimensionar", async () => {
     const erro = await erroDe(gerarPdfDoCartao("K8M4T2", { ...google, larguraFinalMm: 90 }));
     expect(erro.message).toContain("mede 92,00 × 60,00 mm");
-    expect(erro.message).toContain("espera 96,00 × 60,00 mm");
+    expect(erro.message).toContain("aceita 96,00 × 60,00 mm (com sangria) ou 90,00 × 54,00 mm (sem sangria)");
   });
 
   it("recusa área de QR que não cabe na arte", async () => {

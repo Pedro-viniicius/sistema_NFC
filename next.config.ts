@@ -15,6 +15,12 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/admin/**": ["./templates/*.pdf"],
   },
+  experimental: {
+    serverActions: {
+      // O envio da arte de impressão (PDF de até 2 MB) passa por uma Server Action; o padrão é 1 MB.
+      bodySizeLimit: "3mb",
+    },
+  },
   async headers() {
     return [{ source: "/:path*", headers: cabecalhosDeSeguranca }];
   },

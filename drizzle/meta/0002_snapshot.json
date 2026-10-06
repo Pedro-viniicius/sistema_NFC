@@ -1,0 +1,427 @@
+{
+  "id": "a8ead1eb-0ab8-4f48-b0e6-97b95b95fc4f",
+  "prevId": "002ee35c-8657-4c38-9676-9f848344f44f",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.administradores": {
+      "name": "administradores",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "senha_hash": {
+          "name": "senha_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tentativas_falhas": {
+          "name": "tentativas_falhas",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "bloqueado_ate": {
+          "name": "bloqueado_ate",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "administradores_email_unique": {
+          "name": "administradores_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.artes_de_impressao": {
+      "name": "artes_de_impressao",
+      "schema": "",
+      "columns": {
+        "tipo": {
+          "name": "tipo",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pdf": {
+          "name": "pdf",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nome_do_arquivo": {
+          "name": "nome_do_arquivo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tamanho_bytes": {
+          "name": "tamanho_bytes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "qr_x_mm": {
+          "name": "qr_x_mm",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "qr_y_mm": {
+          "name": "qr_y_mm",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "qr_tamanho_mm": {
+          "name": "qr_tamanho_mm",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cor_do_codigo": {
+          "name": "cor_do_codigo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "enviado_em": {
+          "name": "enviado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "artes_tipo_com_modelo": {
+          "name": "artes_tipo_com_modelo",
+          "value": "\"artes_de_impressao\".\"tipo\" in ('GOOGLE', 'INSTAGRAM')"
+        },
+        "artes_cor_do_codigo_valida": {
+          "name": "artes_cor_do_codigo_valida",
+          "value": "\"artes_de_impressao\".\"cor_do_codigo\" is null or \"artes_de_impressao\".\"cor_do_codigo\" in ('preto', 'branco')"
+        },
+        "artes_qr_tamanho_positivo": {
+          "name": "artes_qr_tamanho_positivo",
+          "value": "\"artes_de_impressao\".\"qr_tamanho_mm\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.cartoes": {
+      "name": "cartoes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "codigo": {
+          "name": "codigo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "destino_url": {
+          "name": "destino_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'NAO_CONFIGURADO'"
+        },
+        "descricao": {
+          "name": "descricao",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lote_id": {
+          "name": "lote_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_acessos": {
+          "name": "total_acessos",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "ultimo_acesso_em": {
+          "name": "ultimo_acesso_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "atualizado_em": {
+          "name": "atualizado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "ativado_em": {
+          "name": "ativado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "cartoes_status_idx": {
+          "name": "cartoes_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cartoes_lote_idx": {
+          "name": "cartoes_lote_idx",
+          "columns": [
+            {
+              "expression": "lote_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cartoes_criado_em_idx": {
+          "name": "cartoes_criado_em_idx",
+          "columns": [
+            {
+              "expression": "criado_em",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cartoes_lote_id_lotes_id_fk": {
+          "name": "cartoes_lote_id_lotes_id_fk",
+          "tableFrom": "cartoes",
+          "tableTo": "lotes",
+          "columnsFrom": [
+            "lote_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "cartoes_codigo_unique": {
+          "name": "cartoes_codigo_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "codigo"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "cartoes_codigo_formato": {
+          "name": "cartoes_codigo_formato",
+          "value": "\"cartoes\".\"codigo\" ~ '^[2-9A-HJKMNP-Z]{6}$'"
+        },
+        "cartoes_status_valido": {
+          "name": "cartoes_status_valido",
+          "value": "\"cartoes\".\"status\" in ('NAO_CONFIGURADO', 'ATIVO', 'INATIVO')"
+        },
+        "cartoes_tipo_valido": {
+          "name": "cartoes_tipo_valido",
+          "value": "\"cartoes\".\"tipo\" is null or \"cartoes\".\"tipo\" in ('INSTAGRAM', 'GOOGLE', 'GENERICO')"
+        },
+        "cartoes_ativo_tem_destino": {
+          "name": "cartoes_ativo_tem_destino",
+          "value": "\"cartoes\".\"status\" <> 'ATIVO' or (\"cartoes\".\"destino_url\" is not null and \"cartoes\".\"tipo\" is not null)"
+        },
+        "cartoes_nao_configurado_sem_destino": {
+          "name": "cartoes_nao_configurado_sem_destino",
+          "value": "\"cartoes\".\"status\" <> 'NAO_CONFIGURADO' or \"cartoes\".\"destino_url\" is null"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.lotes": {
+      "name": "lotes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "identificador": {
+          "name": "identificador",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ano": {
+          "name": "ano",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sequencia": {
+          "name": "sequencia",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantidade": {
+          "name": "quantidade",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "descricao": {
+          "name": "descricao",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "lotes_identificador_unique": {
+          "name": "lotes_identificador_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "identificador"
+          ]
+        },
+        "lotes_ano_sequencia_unico": {
+          "name": "lotes_ano_sequencia_unico",
+          "nullsNotDistinct": false,
+          "columns": [
+            "ano",
+            "sequencia"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "lotes_quantidade_positiva": {
+          "name": "lotes_quantidade_positiva",
+          "value": "\"lotes\".\"quantidade\" > 0"
+        },
+        "lotes_tipo_valido": {
+          "name": "lotes_tipo_valido",
+          "value": "\"lotes\".\"tipo\" is null or \"lotes\".\"tipo\" in ('INSTAGRAM', 'GOOGLE', 'GENERICO')"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
