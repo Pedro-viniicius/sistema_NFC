@@ -5,7 +5,9 @@ export type CodigoDeErro =
   | "DESTINO_INVALIDO"
   | "TRANSICAO_INVALIDA"
   | "ENTRADA_INVALIDA"
-  | "LOTE_NAO_ENCONTRADO";
+  | "LOTE_NAO_ENCONTRADO"
+  | "MODELO_NAO_ENCONTRADO"
+  | "IMPRESSAO_INVALIDA";
 
 /** Erro esperado de regra de negócio. A mensagem é segura para exibir ao administrador. */
 export class ErroDeDominio extends Error {
