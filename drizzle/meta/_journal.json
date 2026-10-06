@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791296238803,
+      "tag": "0000_cria_tabelas_iniciais",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791296245400,
+      "tag": "0001_codigo_do_cartao_imutavel",
+      "breakpoints": true
+    }
+  ]
+}
