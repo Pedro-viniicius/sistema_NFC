@@ -16,6 +16,7 @@ import {
 } from "drizzle-orm/pg-core";
 // Imports relativos de propósito: o drizzle-kit não resolve o alias "@/".
 import type { StatusCartao, TipoDestino } from "../modules/cards/tipos";
+import type { Papel, Ramo, SituacaoDoContato } from "../modules/contacts/tipos";
 import type { CaixaPt, StatusTemplate } from "../modules/templates/tipos";
 
 const dataHora = (nome: string) => timestamp(nome, { withTimezone: true });
@@ -114,6 +115,11 @@ export const lotes = pgTable(
      */
     templateId: uuid("template_id").references(() => templatesDeImpressao.id, { onDelete: "restrict" }),
     templateSha256: text("template_sha256"),
+    /**
+     * "Ativação pelo cliente": quando ligada, quem abre a URL de um cartão NÃO configurado deste lote
+     * vê o passo a passo para ativá-lo sozinho. Deve ser ligada só quando os cartões saem para entrega.
+     */
+    ativacaoPeloCliente: boolean("ativacao_pelo_cliente").notNull().default(false),
     criadoEm: dataHora("criado_em").notNull().defaultNow(),
   },
   (t) => [
@@ -217,7 +223,76 @@ export const artesDeImpressao = pgTable(
   ],
 );
 
+/**
+ * Contato de quem ativou um cartão pela página pública. É uma oportunidade de venda e, ao mesmo
+ * tempo, um dado pessoal: pode ser excluído a pedido do titular sem afetar o cartão.
+ */
+export const contatos = pgTable(
+  "contatos",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Cartão ativado. Vira nulo se o cartão for apagado (o contato continua existindo). */
+    cartaoId: uuid("cartao_id")
+      .unique()
+      .references(() => cartoes.id, { onDelete: "set null" }),
+    /** Retrato do cartão no momento da ativação: código, lote e tipo não mudam depois. */
+    cartaoCodigo: text("cartao_codigo").notNull(),
+    loteIdentificador: text("lote_identificador"),
+    tipo: text("tipo").$type<TipoDestino>().notNull(),
+    loja: text("loja").notNull(),
+    ramo: text("ramo").$type<Ramo>(),
+    nome: text("nome").notNull(),
+    papel: text("papel").$type<Papel>().notNull(),
+    /** Quem decide as coisas na loja, quando não é a própria pessoa que preencheu. */
+    decisor: text("decisor"),
+    /** Sempre no formato internacional: +55 + DDD + número. */
+    whatsapp: text("whatsapp").notNull(),
+    /** Aceite (opcional) de receber ofertas, com a versão do texto de privacidade exibido e a data. */
+    aceitouOfertas: boolean("aceitou_ofertas").notNull(),
+    versaoDoTexto: text("versao_do_texto").notNull(),
+    registradoEm: dataHora("registrado_em").notNull().defaultNow(),
+    situacao: text("situacao").$type<SituacaoDoContato>().notNull().default("NOVO"),
+    observacao: text("observacao"),
+    atualizadoEm: dataHora("atualizado_em").notNull().defaultNow(),
+  },
+  (t) => [
+    check("contatos_whatsapp_formato", sql`${t.whatsapp} ~ '^\\+55[1-9][0-9]{9,10}$'`),
+    check(
+      "contatos_situacao_valida",
+      sql`${t.situacao} in ('NOVO', 'CONVERSANDO', 'CLIENTE', 'SEM_INTERESSE')`,
+    ),
+    check("contatos_papel_valido", sql`${t.papel} in ('DONO', 'GERENTE', 'FUNCIONARIO', 'OUTRO')`),
+    check(
+      "contatos_ramo_valido",
+      sql`${t.ramo} is null or ${t.ramo} in ('RESTAURANTE', 'BELEZA', 'VAREJO', 'SAUDE', 'SERVICOS', 'OUTRO')`,
+    ),
+    check("contatos_tipo_valido", sql`${t.tipo} in ('INSTAGRAM', 'GOOGLE', 'GENERICO')`),
+    index("contatos_whatsapp_idx").on(t.whatsapp),
+    index("contatos_situacao_idx").on(t.situacao),
+    index("contatos_registrado_em_idx").on(t.registradoEm),
+  ],
+);
+
+/**
+ * Contadores do limite de tentativas da página pública. Ficam no banco porque, na Vercel, cada
+ * requisição pode cair em uma instância diferente: um contador em memória não funcionaria.
+ * A chave nunca contém o IP em claro (só um resumo com segredo).
+ */
+export const limitesDeTentativas = pgTable(
+  "limites_de_tentativas",
+  {
+    chave: text("chave").primaryKey(),
+    contagem: integer("contagem").notNull(),
+    /** Início da janela de contagem atual. */
+    inicio: dataHora("inicio").notNull(),
+    /** Fim da janela: depois disto a linha pode ser apagada. */
+    expiraEm: dataHora("expira_em").notNull(),
+  },
+  (t) => [index("limites_expira_em_idx").on(t.expiraEm)],
+);
+
 export type Cartao = typeof cartoes.$inferSelect;
+export type Contato = typeof contatos.$inferSelect;
 export type Lote = typeof lotes.$inferSelect;
 export type Administrador = typeof administradores.$inferSelect;
 export type ArteDeImpressao = typeof artesDeImpressao.$inferSelect;

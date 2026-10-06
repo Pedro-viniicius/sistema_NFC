@@ -29,6 +29,13 @@
       "when": 1791302521353,
       "tag": "0003_cria_templates_de_impressao",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791309932059,
+      "tag": "0004_cria_contatos_e_ativacao_pelo_cliente",
+      "breakpoints": true
     }
   ]
 }
