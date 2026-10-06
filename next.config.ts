@@ -10,6 +10,11 @@ const cabecalhosDeSeguranca = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // As artes de impressão são lidas do disco em tempo de execução (somente leitura):
+  // precisam ser empacotadas junto com as funções do painel na Vercel.
+  outputFileTracingIncludes: {
+    "/admin/**": ["./templates/*.pdf"],
+  },
   async headers() {
     return [{ source: "/:path*", headers: cabecalhosDeSeguranca }];
   },

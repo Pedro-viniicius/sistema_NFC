@@ -57,6 +57,15 @@ export function nomeDoPdfDoCartao(modelo: ModeloDeImpressao, codigo: string): st
   return nomeDeArquivoSeguro(`${modelo.slug}-${codigo}.pdf`);
 }
 
+/** Primeiro dos tipos informados que tem arte de impressão, ou null. */
+export function sugerirModelo(...tipos: Parameters<typeof obterModelo>[0][]): ModeloDeImpressao | null {
+  for (const tipo of tipos) {
+    const modelo = obterModelo(tipo);
+    if (modelo) return modelo;
+  }
+  return null;
+}
+
 /**
  * Escolhe o modelo de impressão: o pedido explicitamente (slug) ou, na falta dele,
  * o primeiro tipo informado que tenha arte (ex.: tipo do lote, depois tipo do cartão).
@@ -70,10 +79,8 @@ export function escolherModelo(
     if (!pedido) throw new ErroDeDominio("MODELO_NAO_ENCONTRADO", "Modelo de impressão desconhecido.");
     return pedido;
   }
-  for (const tipo of tipos) {
-    const modelo = obterModelo(tipo);
-    if (modelo) return modelo;
-  }
+  const sugerido = sugerirModelo(...tipos);
+  if (sugerido) return sugerido;
   throw new ErroDeDominio(
     "MODELO_NAO_ENCONTRADO",
     "Este item não tem um modelo de impressão definido. Escolha o modelo (Google ou Instagram).",

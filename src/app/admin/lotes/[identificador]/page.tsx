@@ -31,7 +31,10 @@ export default async function PaginaDoLote({ params }: PageProps<"/admin/lotes/[
         </Link>
       </p>
       <TituloDaPagina titulo={lote.identificador}>
-        <a href={`${exportar}?formato=zip`} className={classesDoBotao("primario")}>
+        <Link href={`/admin/lotes/${lote.identificador}/grafica`} className={classesDoBotao("primario")}>
+          Gerar arquivos para gráfica
+        </Link>
+        <a href={`${exportar}?formato=zip`} className={classesDoBotao("secundario")}>
           Baixar QR Codes (ZIP)
         </a>
         <a href={`${exportar}?formato=csv`} className={classesDoBotao("secundario")}>
@@ -45,9 +48,8 @@ export default async function PaginaDoLote({ params }: PageProps<"/admin/lotes/[
         {lote.descricao ? ` · ${lote.descricao}` : ""}
       </p>
       <p className="mb-4 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
-        O ZIP contém a pasta <code className="font-mono">{lote.identificador}/</code> com um SVG por cartão
-        (<code className="font-mono">CODIGO.svg</code>) e o arquivo <code className="font-mono">lote.csv</code>.
-        Envie à gráfica e grave no NFC a mesma URL permanente de cada linha.
+        Em <strong>Gerar arquivos para gráfica</strong> você baixa a arte final de cada cartão (PDF), o controle de
+        produção e os QR Codes. O ZIP de QR Codes daqui contém só os SVGs e o <code className="font-mono">lote.csv</code>.
       </p>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">

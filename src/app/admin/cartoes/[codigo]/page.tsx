@@ -9,6 +9,9 @@ import { buscarLotePorId } from "@/modules/batches/servico";
 import { resumirCartao } from "@/modules/cards/apresentacao";
 import { normalizarCodigo } from "@/modules/cards/codigo";
 import { buscarCartaoPorCodigo } from "@/modules/cards/repositorio";
+import { listarModelos } from "@/modules/printing/modelos";
+import { sugerirModelo } from "@/modules/printing/producao";
+import { tiposParaAArteDoCartao } from "@/modules/printing/servico";
 import { nomeDoArquivoQr } from "@/modules/qr/gerar";
 import { BotoesDeStatus, EditorDeDescricao, EditorDeDestino } from "./controles";
 
@@ -32,6 +35,7 @@ export default async function PaginaDoCartao({ params }: PageProps<"/admin/carto
 
   const resumo = resumirCartao(cartao);
   const lote = cartao.loteId ? await buscarLotePorId(db, cartao.loteId) : null;
+  const modeloDaArte = sugerirModelo(...tiposParaAArteDoCartao(cartao, lote));
   const urlDoQr = `/admin/cartoes/${cartao.codigo}/qr`;
 
   return (
@@ -114,7 +118,7 @@ export default async function PaginaDoCartao({ params }: PageProps<"/admin/carto
                 download={nomeDoArquivoQr(cartao.codigo, "svg")}
                 className={classesDoBotao("primario")}
               >
-                Baixar QR Code (SVG)
+                Baixar QR SVG
               </a>
               <a
                 href={`${urlDoQr}?formato=png&baixar=1`}
@@ -125,6 +129,40 @@ export default async function PaginaDoCartao({ params }: PageProps<"/admin/carto
               </a>
             </div>
             <p className="mt-3 text-xs text-slate-500">Prefira o SVG para impressão profissional.</p>
+          </Painel>
+
+          <Painel
+            titulo="Arte para impressão"
+            descricao={
+              modeloDaArte
+                ? `Modelo ${modeloDaArte.nome}: arte final com o QR Code deste cartão, pronta para a gráfica.`
+                : "Este cartão não tem um modelo definido. Escolha a arte:"
+            }
+          >
+            <div className="grid gap-2">
+              {(modeloDaArte ? [modeloDaArte] : listarModelos()).map((modelo) => (
+                <a
+                  key={modelo.slug}
+                  href={`/admin/cartoes/${cartao.codigo}/impressao?modelo=${modelo.slug}`}
+                  className={classesDoBotao(modeloDaArte ? "primario" : "secundario")}
+                >
+                  {modeloDaArte ? "Baixar arte para impressão" : `Baixar arte — ${modelo.nome}`}
+                </a>
+              ))}
+              {modeloDaArte ? (
+                <a
+                  href={`/admin/cartoes/${cartao.codigo}/impressao?modelo=${modeloDaArte.slug}&ver=1`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={classesDoBotao("secundario")}
+                >
+                  Ver arte (PDF)
+                </a>
+              ) : null}
+            </div>
+            <p className="mt-3 text-xs text-slate-500">
+              PDF vetorial de 86 × 54 mm com 3 mm de sangria. O QR contém apenas a URL permanente.
+            </p>
           </Painel>
 
           <Painel
