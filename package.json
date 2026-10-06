@@ -17,6 +17,7 @@
     "admin:criar": "tsx --env-file-if-exists=.env.local scripts/criar-admin.ts",
     "impressao:modelos": "tsx scripts/gerar-modelos-de-impressao.ts",
     "templates:fixtures": "tsx scripts/gerar-fixtures-de-template.ts",
+    "templates:medir": "tsx --expose-gc scripts/medir-templates.ts"
   },
   "dependencies": {
     "@vercel/blob": "^2.8.0",

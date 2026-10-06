@@ -38,7 +38,16 @@ export interface FaixaDeModulos {
  * então o QR do arquivo avulso e o da arte final são sempre o mesmo desenho.
  */
 export function gerarMatrizDoQr(codigo: string): MatrizDoQr {
-  const { modules } = QRCode.create(conteudoDoQr(codigo), {
+  return gerarMatrizDoConteudo(conteudoDoQr(codigo));
+}
+
+/**
+ * Matriz do QR de um texto já pronto, com a mesma correção de erro de todos os QR do sistema.
+ * Só o gerador de templates de impressão usa esta função diretamente, e ele só aceita a URL
+ * permanente de um cartão (ou a URL reservada de teste): ver src/modules/templates/renderizacao.ts.
+ */
+export function gerarMatrizDoConteudo(conteudo: string): MatrizDoQr {
+  const { modules } = QRCode.create(conteudo, {
     errorCorrectionLevel: OPCOES_DO_QR.errorCorrectionLevel,
   });
   const lado = modules.size;
@@ -46,6 +55,42 @@ export function gerarMatrizDoQr(codigo: string): MatrizDoQr {
     Array.from({ length: lado }, (_, coluna) => modules.data[linha * lado + coluna] === 1),
   );
   return { lado, linhas };
+}
+
+/** Bloco retangular de módulos escuros. */
+export interface BlocoDeModulos extends FaixaDeModulos {
+  altura: number;
+}
+
+/**
+ * Como `agruparEmFaixas`, mas também junta faixas idênticas de linhas vizinhas em um bloco só.
+ * Menos formas no desenho e menos arestas compartilhadas entre elas.
+ */
+export function agruparEmBlocos(matriz: MatrizDoQr): BlocoDeModulos[] {
+  const blocos: BlocoDeModulos[] = [];
+  let abertos = new Map<string, BlocoDeModulos>();
+  let linhaAtual = -1;
+  let daLinha = new Map<string, BlocoDeModulos>();
+
+  for (const faixa of agruparEmFaixas(matriz)) {
+    if (faixa.linha !== linhaAtual) {
+      // Só continuam abertos os blocos que chegaram até a linha imediatamente anterior.
+      abertos = faixa.linha === linhaAtual + 1 ? daLinha : new Map();
+      daLinha = new Map();
+      linhaAtual = faixa.linha;
+    }
+    const chave = `${faixa.coluna}:${faixa.largura}`;
+    const acima = abertos.get(chave);
+    if (acima) {
+      acima.altura += 1;
+      daLinha.set(chave, acima);
+    } else {
+      const bloco = { ...faixa, altura: 1 };
+      blocos.push(bloco);
+      daLinha.set(chave, bloco);
+    }
+  }
+  return blocos;
 }
 
 /** Junta módulos escuros vizinhos da mesma linha em faixas: menos formas e nenhuma emenda entre módulos. */

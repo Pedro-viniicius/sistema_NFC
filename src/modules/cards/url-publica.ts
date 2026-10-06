@@ -2,7 +2,7 @@
 // o QR Code e o NFC usam sempre o resultado de getCardPublicUrl().
 import { ErroDeConfiguracao } from "@/lib/env";
 import { ErroDeDominio } from "@/lib/erros";
-import { codigoValido } from "./codigo";
+import { CODIGO_DE_TESTE, codigoValido } from "./codigo";
 
 const HOSTS_LOCAIS = new Set(["localhost", "127.0.0.1"]);
 
@@ -42,6 +42,14 @@ export function getCardPublicUrl(codigo: string): string {
     throw new ErroDeDominio("CODIGO_INVALIDO", "Código de cartão inválido.");
   }
   return `${obterUrlBase()}/c/${codigo}`;
+}
+
+/**
+ * URL usada nos testes de impressão: a URL base real com o código reservado, que nunca pertence
+ * a um cartão. Tem o mesmo comprimento de uma URL permanente de verdade.
+ */
+export function urlDeTesteDoQr(): string {
+  return `${obterUrlBase()}/c/${CODIGO_DE_TESTE}`;
 }
 
 /** Host do próprio sistema, ou null se a URL base estiver mal configurada. */

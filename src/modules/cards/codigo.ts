@@ -4,6 +4,14 @@
 export const ALFABETO_CODIGO = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
 export const COMPRIMENTO_CODIGO = 6;
 
+/**
+ * Código RESERVADO para testes de impressão (ex.: o QR de teste de um template). Tem o mesmo
+ * comprimento de um código real, para o QR de teste ter o mesmo tamanho dos QR de produção, mas
+ * contém "0", que não faz parte do alfabeto: nunca é gerado, não passa na validação, o banco o
+ * recusa e /c/TESTE0 responde "não encontrado", sem redirecionar.
+ */
+export const CODIGO_DE_TESTE = "TESTE0";
+
 const FORMATO_CODIGO = new RegExp(`^[${ALFABETO_CODIGO}]{${COMPRIMENTO_CODIGO}}$`);
 
 /** Devolve um inteiro uniforme em [0, limite). */

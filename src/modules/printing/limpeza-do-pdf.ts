@@ -4,9 +4,9 @@
 // depois cria, a partir dele, o objeto realmente usado. A cópia original fica sem nenhuma referência,
 // mas seria gravada mesmo assim — o arquivo sairia com a arte em dobro. Aqui percorremos tudo o que
 // é alcançável a partir da raiz do documento e descartamos o resto antes de salvar.
-import { PDFArray, PDFDict, PDFRef, PDFStream, type PDFDocument, type PDFObject } from "pdf-lib";
+import { PDFArray, PDFDict, PDFRef, PDFStream, type PDFDocument, type PDFObject, type SaveOptions } from "pdf-lib";
 
-export async function salvarSemObjetosOrfaos(documento: PDFDocument): Promise<Uint8Array> {
+export async function salvarSemObjetosOrfaos(documento: PDFDocument, opcoes?: SaveOptions): Promise<Uint8Array> {
   // Garante que páginas embutidas e metadados já viraram objetos do documento.
   await documento.flush();
 
@@ -15,7 +15,7 @@ export async function salvarSemObjetosOrfaos(documento: PDFDocument): Promise<Ui
     (objeto): objeto is PDFObject => objeto !== undefined,
   );
   // Sem raiz não há como saber o que é alcançável: salva como está.
-  if (raizes.length === 0) return documento.save();
+  if (raizes.length === 0) return documento.save(opcoes);
 
   const alcancados = new Set<string>();
   const pendentes: PDFObject[] = [...raizes];
@@ -37,5 +37,5 @@ export async function salvarSemObjetosOrfaos(documento: PDFDocument): Promise<Ui
   for (const [referencia] of context.enumerateIndirectObjects()) {
     if (!alcancados.has(referencia.tag)) context.delete(referencia);
   }
-  return documento.save();
+  return documento.save(opcoes);
 }
