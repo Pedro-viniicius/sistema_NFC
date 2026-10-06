@@ -1,20 +1,99 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   customType,
   doublePrecision,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-// Import relativo de propósito: o drizzle-kit não resolve o alias "@/".
+// Imports relativos de propósito: o drizzle-kit não resolve o alias "@/".
 import type { StatusCartao, TipoDestino } from "../modules/cards/tipos";
+import type { CaixaPt, StatusTemplate } from "../modules/templates/tipos";
 
 const dataHora = (nome: string) => timestamp(nome, { withTimezone: true });
+
+/**
+ * Template de impressão: a arte final em PDF enviada pelo painel, mais a área onde entra o QR.
+ * O arquivo fica no armazenamento persistente (Vercel Blob); aqui ficam os metadados e a referência.
+ * Um arquivo armazenado nunca é sobrescrito, e um template usado por um lote fica bloqueado.
+ */
+export const templatesDeImpressao = pgTable(
+  "templates_de_impressao",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    nome: text("nome").notNull(),
+    /** Produto a que a arte se destina. Nulo só enquanto o rascunho ainda não foi classificado. */
+    tipo: text("tipo").$type<TipoDestino>(),
+    status: text("status").$type<StatusTemplate>().notNull().default("RASCUNHO"),
+    /** Template sugerido para novos lotes do produto. No máximo um por produto. */
+    padrao: boolean("padrao").notNull().default(false),
+    /** Referência do arquivo no armazenamento persistente (nunca um caminho de disco). */
+    chaveDoArquivo: text("chave_do_arquivo").notNull().unique(),
+    arquivoNomeOriginal: text("arquivo_nome_original").notNull(),
+    mimeType: text("mime_type").notNull().default("application/pdf"),
+    tamanhoBytes: integer("tamanho_bytes").notNull(),
+    sha256: text("sha256").notNull(),
+    numeroDePaginas: integer("numero_de_paginas").notNull(),
+    rotacao: integer("rotacao").notNull(),
+    /** Caixas da página em pontos: [x0, y0, x1, y1], origem embaixo à esquerda. */
+    mediaBox: jsonb("media_box").$type<CaixaPt>().notNull(),
+    cropBox: jsonb("crop_box").$type<CaixaPt>().notNull(),
+    trimBox: jsonb("trim_box").$type<CaixaPt>(),
+    bleedBox: jsonb("bleed_box").$type<CaixaPt>(),
+    /** Tamanho da página visível (CropBox limitada à MediaBox), em mm. */
+    larguraDaPaginaMm: doublePrecision("largura_da_pagina_mm").notNull(),
+    alturaDaPaginaMm: doublePrecision("altura_da_pagina_mm").notNull(),
+    /** Área do QR em pontos, no espaço do usuário da página (origem embaixo à esquerda). */
+    qrXPt: doublePrecision("qr_x_pt"),
+    qrYPt: doublePrecision("qr_y_pt"),
+    qrLarguraPt: doublePrecision("qr_largura_pt"),
+    qrAlturaPt: doublePrecision("qr_altura_pt"),
+    qrZonaDeSilencioModulos: integer("qr_zona_de_silencio_modulos").notNull().default(4),
+    /** Última alteração da área do QR. O teste só vale se for posterior a esta data. */
+    qrConfiguradoEm: dataHora("qr_configurado_em"),
+    /** Último teste bem-sucedido no servidor; volta a nulo quando a área do QR muda. */
+    qrTestadoEm: dataHora("qr_testado_em"),
+    /** Preenchido quando o primeiro lote usa o template: arquivo e área do QR não mudam mais. */
+    bloqueadoEm: dataHora("bloqueado_em"),
+    criadoEm: dataHora("criado_em").notNull().defaultNow(),
+    atualizadoEm: dataHora("atualizado_em").notNull().defaultNow(),
+  },
+  (t) => [
+    check("templates_status_valido", sql`${t.status} in ('RASCUNHO', 'PRONTO', 'INATIVO')`),
+    check(
+      "templates_tipo_valido",
+      sql`${t.tipo} is null or ${t.tipo} in ('INSTAGRAM', 'GOOGLE', 'GENERICO')`,
+    ),
+    check("templates_uma_pagina_sem_rotacao", sql`${t.numeroDePaginas} = 1 and ${t.rotacao} = 0`),
+    check("templates_zona_de_silencio_minima", sql`${t.qrZonaDeSilencioModulos} >= 2`),
+    // A área do QR ou está toda definida (com tamanho positivo) ou não está definida.
+    check(
+      "templates_area_do_qr_completa",
+      sql`(${t.qrXPt} is null and ${t.qrYPt} is null and ${t.qrLarguraPt} is null and ${t.qrAlturaPt} is null)
+        or (${t.qrXPt} is not null and ${t.qrYPt} is not null and ${t.qrLarguraPt} > 0 and ${t.qrAlturaPt} > 0)`,
+    ),
+    // PRONTO exige produto, área do QR e um teste posterior à última alteração da área.
+    check(
+      "templates_pronto_exige_qr_testado",
+      sql`${t.status} <> 'PRONTO' or (
+        ${t.tipo} is not null and ${t.qrXPt} is not null
+        and ${t.qrTestadoEm} is not null and ${t.qrConfiguradoEm} is not null
+        and ${t.qrTestadoEm} >= ${t.qrConfiguradoEm}
+      )`,
+    ),
+    check("templates_padrao_exige_pronto", sql`not ${t.padrao} or ${t.status} = 'PRONTO'`),
+    uniqueIndex("templates_um_padrao_por_tipo").on(t.tipo).where(sql`${t.padrao}`),
+    index("templates_tipo_status_idx").on(t.tipo, t.status),
+  ],
+);
 
 /** Lote de fabricação: um conjunto de cartões gerados de uma vez para impressão. */
 export const lotes = pgTable(
@@ -29,10 +108,21 @@ export const lotes = pgTable(
     /** Tipo pré-definido para os cartões do lote; nulo = sem tipo definido. */
     tipo: text("tipo").$type<TipoDestino>(),
     descricao: text("descricao"),
+    /**
+     * Template de impressão com que o lote foi gerado, e o SHA-256 do arquivo naquele momento.
+     * Nulo nos lotes anteriores aos templates: esses seguem pelo caminho antigo (modelo do sistema).
+     */
+    templateId: uuid("template_id").references(() => templatesDeImpressao.id, { onDelete: "restrict" }),
+    templateSha256: text("template_sha256"),
     criadoEm: dataHora("criado_em").notNull().defaultNow(),
   },
   (t) => [
     unique("lotes_ano_sequencia_unico").on(t.ano, t.sequencia),
+    check(
+      "lotes_template_com_sha256",
+      sql`(${t.templateId} is null) = (${t.templateSha256} is null)`,
+    ),
+    index("lotes_template_idx").on(t.templateId),
     check("lotes_quantidade_positiva", sql`${t.quantidade} > 0`),
     check(
       "lotes_tipo_valido",
@@ -131,3 +221,4 @@ export type Cartao = typeof cartoes.$inferSelect;
 export type Lote = typeof lotes.$inferSelect;
 export type Administrador = typeof administradores.$inferSelect;
 export type ArteDeImpressao = typeof artesDeImpressao.$inferSelect;
+export type TemplateDeImpressao = typeof templatesDeImpressao.$inferSelect;

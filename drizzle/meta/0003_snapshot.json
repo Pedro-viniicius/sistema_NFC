@@ -1,0 +1,736 @@
+{
+  "id": "7ff19fbe-fa32-47a7-bbae-e10b794b13df",
+  "prevId": "a8ead1eb-0ab8-4f48-b0e6-97b95b95fc4f",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.administradores": {
+      "name": "administradores",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "senha_hash": {
+          "name": "senha_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tentativas_falhas": {
+          "name": "tentativas_falhas",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "bloqueado_ate": {
+          "name": "bloqueado_ate",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "administradores_email_unique": {
+          "name": "administradores_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.artes_de_impressao": {
+      "name": "artes_de_impressao",
+      "schema": "",
+      "columns": {
+        "tipo": {
+          "name": "tipo",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pdf": {
+          "name": "pdf",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nome_do_arquivo": {
+          "name": "nome_do_arquivo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tamanho_bytes": {
+          "name": "tamanho_bytes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "qr_x_mm": {
+          "name": "qr_x_mm",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "qr_y_mm": {
+          "name": "qr_y_mm",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "qr_tamanho_mm": {
+          "name": "qr_tamanho_mm",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cor_do_codigo": {
+          "name": "cor_do_codigo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "enviado_em": {
+          "name": "enviado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "artes_tipo_com_modelo": {
+          "name": "artes_tipo_com_modelo",
+          "value": "\"artes_de_impressao\".\"tipo\" in ('GOOGLE', 'INSTAGRAM')"
+        },
+        "artes_cor_do_codigo_valida": {
+          "name": "artes_cor_do_codigo_valida",
+          "value": "\"artes_de_impressao\".\"cor_do_codigo\" is null or \"artes_de_impressao\".\"cor_do_codigo\" in ('preto', 'branco')"
+        },
+        "artes_qr_tamanho_positivo": {
+          "name": "artes_qr_tamanho_positivo",
+          "value": "\"artes_de_impressao\".\"qr_tamanho_mm\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.cartoes": {
+      "name": "cartoes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "codigo": {
+          "name": "codigo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "destino_url": {
+          "name": "destino_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'NAO_CONFIGURADO'"
+        },
+        "descricao": {
+          "name": "descricao",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lote_id": {
+          "name": "lote_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_acessos": {
+          "name": "total_acessos",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "ultimo_acesso_em": {
+          "name": "ultimo_acesso_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "atualizado_em": {
+          "name": "atualizado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "ativado_em": {
+          "name": "ativado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "cartoes_status_idx": {
+          "name": "cartoes_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cartoes_lote_idx": {
+          "name": "cartoes_lote_idx",
+          "columns": [
+            {
+              "expression": "lote_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cartoes_criado_em_idx": {
+          "name": "cartoes_criado_em_idx",
+          "columns": [
+            {
+              "expression": "criado_em",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cartoes_lote_id_lotes_id_fk": {
+          "name": "cartoes_lote_id_lotes_id_fk",
+          "tableFrom": "cartoes",
+          "tableTo": "lotes",
+          "columnsFrom": [
+            "lote_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "cartoes_codigo_unique": {
+          "name": "cartoes_codigo_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "codigo"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "cartoes_codigo_formato": {
+          "name": "cartoes_codigo_formato",
+          "value": "\"cartoes\".\"codigo\" ~ '^[2-9A-HJKMNP-Z]{6}$'"
+        },
+        "cartoes_status_valido": {
+          "name": "cartoes_status_valido",
+          "value": "\"cartoes\".\"status\" in ('NAO_CONFIGURADO', 'ATIVO', 'INATIVO')"
+        },
+        "cartoes_tipo_valido": {
+          "name": "cartoes_tipo_valido",
+          "value": "\"cartoes\".\"tipo\" is null or \"cartoes\".\"tipo\" in ('INSTAGRAM', 'GOOGLE', 'GENERICO')"
+        },
+        "cartoes_ativo_tem_destino": {
+          "name": "cartoes_ativo_tem_destino",
+          "value": "\"cartoes\".\"status\" <> 'ATIVO' or (\"cartoes\".\"destino_url\" is not null and \"cartoes\".\"tipo\" is not null)"
+        },
+        "cartoes_nao_configurado_sem_destino": {
+          "name": "cartoes_nao_configurado_sem_destino",
+          "value": "\"cartoes\".\"status\" <> 'NAO_CONFIGURADO' or \"cartoes\".\"destino_url\" is null"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.lotes": {
+      "name": "lotes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "identificador": {
+          "name": "identificador",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ano": {
+          "name": "ano",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sequencia": {
+          "name": "sequencia",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantidade": {
+          "name": "quantidade",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "descricao": {
+          "name": "descricao",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "template_id": {
+          "name": "template_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "template_sha256": {
+          "name": "template_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "lotes_template_idx": {
+          "name": "lotes_template_idx",
+          "columns": [
+            {
+              "expression": "template_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "lotes_template_id_templates_de_impressao_id_fk": {
+          "name": "lotes_template_id_templates_de_impressao_id_fk",
+          "tableFrom": "lotes",
+          "tableTo": "templates_de_impressao",
+          "columnsFrom": [
+            "template_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "lotes_identificador_unique": {
+          "name": "lotes_identificador_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "identificador"
+          ]
+        },
+        "lotes_ano_sequencia_unico": {
+          "name": "lotes_ano_sequencia_unico",
+          "nullsNotDistinct": false,
+          "columns": [
+            "ano",
+            "sequencia"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "lotes_template_com_sha256": {
+          "name": "lotes_template_com_sha256",
+          "value": "(\"lotes\".\"template_id\" is null) = (\"lotes\".\"template_sha256\" is null)"
+        },
+        "lotes_quantidade_positiva": {
+          "name": "lotes_quantidade_positiva",
+          "value": "\"lotes\".\"quantidade\" > 0"
+        },
+        "lotes_tipo_valido": {
+          "name": "lotes_tipo_valido",
+          "value": "\"lotes\".\"tipo\" is null or \"lotes\".\"tipo\" in ('INSTAGRAM', 'GOOGLE', 'GENERICO')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.templates_de_impressao": {
+      "name": "templates_de_impressao",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "nome": {
+          "name": "nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'RASCUNHO'"
+        },
+        "padrao": {
+          "name": "padrao",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "chave_do_arquivo": {
+          "name": "chave_do_arquivo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "arquivo_nome_original": {
+          "name": "arquivo_nome_original",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mime_type": {
+          "name": "mime_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'application/pdf'"
+        },
+        "tamanho_bytes": {
+          "name": "tamanho_bytes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sha256": {
+          "name": "sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "numero_de_paginas": {
+          "name": "numero_de_paginas",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rotacao": {
+          "name": "rotacao",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "media_box": {
+          "name": "media_box",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "crop_box": {
+          "name": "crop_box",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trim_box": {
+          "name": "trim_box",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bleed_box": {
+          "name": "bleed_box",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "largura_da_pagina_mm": {
+          "name": "largura_da_pagina_mm",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "altura_da_pagina_mm": {
+          "name": "altura_da_pagina_mm",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "qr_x_pt": {
+          "name": "qr_x_pt",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "qr_y_pt": {
+          "name": "qr_y_pt",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "qr_largura_pt": {
+          "name": "qr_largura_pt",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "qr_altura_pt": {
+          "name": "qr_altura_pt",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "qr_zona_de_silencio_modulos": {
+          "name": "qr_zona_de_silencio_modulos",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 4
+        },
+        "qr_configurado_em": {
+          "name": "qr_configurado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "qr_testado_em": {
+          "name": "qr_testado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bloqueado_em": {
+          "name": "bloqueado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "atualizado_em": {
+          "name": "atualizado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "templates_um_padrao_por_tipo": {
+          "name": "templates_um_padrao_por_tipo",
+          "columns": [
+            {
+              "expression": "tipo",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"templates_de_impressao\".\"padrao\"",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "templates_tipo_status_idx": {
+          "name": "templates_tipo_status_idx",
+          "columns": [
+            {
+              "expression": "tipo",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "templates_de_impressao_chave_do_arquivo_unique": {
+          "name": "templates_de_impressao_chave_do_arquivo_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "chave_do_arquivo"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "templates_status_valido": {
+          "name": "templates_status_valido",
+          "value": "\"templates_de_impressao\".\"status\" in ('RASCUNHO', 'PRONTO', 'INATIVO')"
+        },
+        "templates_tipo_valido": {
+          "name": "templates_tipo_valido",
+          "value": "\"templates_de_impressao\".\"tipo\" is null or \"templates_de_impressao\".\"tipo\" in ('INSTAGRAM', 'GOOGLE', 'GENERICO')"
+        },
+        "templates_uma_pagina_sem_rotacao": {
+          "name": "templates_uma_pagina_sem_rotacao",
+          "value": "\"templates_de_impressao\".\"numero_de_paginas\" = 1 and \"templates_de_impressao\".\"rotacao\" = 0"
+        },
+        "templates_zona_de_silencio_minima": {
+          "name": "templates_zona_de_silencio_minima",
+          "value": "\"templates_de_impressao\".\"qr_zona_de_silencio_modulos\" >= 2"
+        },
+        "templates_area_do_qr_completa": {
+          "name": "templates_area_do_qr_completa",
+          "value": "(\"templates_de_impressao\".\"qr_x_pt\" is null and \"templates_de_impressao\".\"qr_y_pt\" is null and \"templates_de_impressao\".\"qr_largura_pt\" is null and \"templates_de_impressao\".\"qr_altura_pt\" is null)\n        or (\"templates_de_impressao\".\"qr_x_pt\" is not null and \"templates_de_impressao\".\"qr_y_pt\" is not null and \"templates_de_impressao\".\"qr_largura_pt\" > 0 and \"templates_de_impressao\".\"qr_altura_pt\" > 0)"
+        },
+        "templates_pronto_exige_qr_testado": {
+          "name": "templates_pronto_exige_qr_testado",
+          "value": "\"templates_de_impressao\".\"status\" <> 'PRONTO' or (\n        \"templates_de_impressao\".\"tipo\" is not null and \"templates_de_impressao\".\"qr_x_pt\" is not null\n        and \"templates_de_impressao\".\"qr_testado_em\" is not null and \"templates_de_impressao\".\"qr_configurado_em\" is not null\n        and \"templates_de_impressao\".\"qr_testado_em\" >= \"templates_de_impressao\".\"qr_configurado_em\"\n      )"
+        },
+        "templates_padrao_exige_pronto": {
+          "name": "templates_padrao_exige_pronto",
+          "value": "not \"templates_de_impressao\".\"padrao\" or \"templates_de_impressao\".\"status\" = 'PRONTO'"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
