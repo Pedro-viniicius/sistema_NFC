@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { obterBanco } from "@/db/cliente";
 import { Painel, TituloDaPagina, classesDoBotao } from "@/components/ui";
 import { formatarDataHora } from "@/lib/datas";
@@ -21,6 +22,15 @@ export default async function PaginaDeArtes() {
   return (
     <>
       <TituloDaPagina titulo="Artes de impressão" />
+
+      <p className="mb-4 rounded-lg bg-sky-50 px-4 py-3 text-sm text-sky-900">
+        Para artes novas, prefira os{" "}
+        <Link href="/admin/templates-impressao" className="font-medium underline underline-offset-2">
+          Templates de impressão
+        </Link>
+        : aceitam qualquer tamanho de página, arquivos de até 25 MB e o posicionamento visual do QR Code. Esta tela
+        continua valendo para os lotes criados sem template.
+      </p>
 
       <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-sm sm:p-6">
         <p className="font-medium text-slate-900">Como preparar o PDF da arte</p>

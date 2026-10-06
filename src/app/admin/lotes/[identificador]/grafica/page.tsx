@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { obterBanco } from "@/db/cliente";
 import { Painel, classesDoBotao } from "@/components/ui";
 import { ErroDeConfiguracao } from "@/lib/env";
@@ -16,6 +16,7 @@ import {
   type PacoteDeProducao,
 } from "@/modules/printing/producao";
 import { carregarLoteParaProducao, planejarPacoteDoLote } from "@/modules/printing/servico";
+import { buscarTemplateDoLote } from "@/modules/templates/producao";
 import { PreviaDoModelo } from "./previa";
 
 export const metadata: Metadata = { title: "Arquivos para a gráfica — Cartões NFC" };
@@ -51,6 +52,8 @@ export default async function PaginaDeArquivosParaGrafica({
   });
   if (!dados) notFound();
   const { lote, cartoes } = dados;
+  // Lotes com template não escolhem modelo: os arquivos ficam na própria página do lote.
+  if (await buscarTemplateDoLote(db, lote)) redirect(`/admin/lotes/${lote.identificador}#grafica`);
 
   const modeloBase = obterModeloPorSlug(slugPedido) ?? sugerirModelo(lote.tipo);
   // Já com a arte enviada pelo painel (e a posição do QR dela), se houver.

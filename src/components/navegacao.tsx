@@ -7,13 +7,14 @@ const LINKS = [
   { href: "/admin", rotulo: "Painel", exato: true },
   { href: "/admin/cartoes", rotulo: "Cartões", exato: false },
   { href: "/admin/lotes", rotulo: "Lotes", exato: false },
+  { href: "/admin/templates-impressao", rotulo: "Templates de impressão", exato: false },
   { href: "/admin/artes", rotulo: "Artes", exato: false },
 ] as const;
 
 export function LinksDeNavegacao() {
   const caminho = usePathname();
   return (
-    <nav aria-label="Navegação principal" className="flex items-center gap-1">
+    <nav aria-label="Navegação principal" className="flex flex-wrap items-center gap-1">
       {LINKS.map((link) => {
         const ativo = link.exato ? caminho === link.href : caminho.startsWith(link.href);
         return (

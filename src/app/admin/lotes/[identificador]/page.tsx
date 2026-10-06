@@ -8,6 +8,8 @@ import { exigirAdmin } from "@/modules/auth/sessao";
 import { buscarLotePorIdentificador } from "@/modules/batches/servico";
 import { listarCartoesDoLote } from "@/modules/cards/repositorio";
 import { getCardPublicUrl } from "@/modules/cards/url-publica";
+import { formatarDimensoesMm } from "@/modules/templates/formato";
+import { buscarTemplateDoLote } from "@/modules/templates/producao";
 import { ApagarLote } from "./apagar-lote";
 
 export default async function PaginaDoLote({ params }: PageProps<"/admin/lotes/[identificador]">) {
@@ -23,6 +25,9 @@ export default async function PaginaDoLote({ params }: PageProps<"/admin/lotes/[
 
   const cartoes = await listarCartoesDoLote(db, lote.id);
   const exportar = `/admin/lotes/${lote.identificador}/exportar`;
+  // Lotes gerados com um template de impressão ficam presos a ele; os demais usam o modelo do sistema.
+  const template = await buscarTemplateDoLote(db, lote);
+  const baixar = `/admin/lotes/${lote.identificador}/grafica/baixar`;
 
   return (
     <>
@@ -32,9 +37,11 @@ export default async function PaginaDoLote({ params }: PageProps<"/admin/lotes/[
         </Link>
       </p>
       <TituloDaPagina titulo={lote.identificador}>
-        <Link href={`/admin/lotes/${lote.identificador}/grafica`} className={classesDoBotao("primario")}>
-          Gerar arquivos para gráfica
-        </Link>
+        {template ? null : (
+          <Link href={`/admin/lotes/${lote.identificador}/grafica`} className={classesDoBotao("primario")}>
+            Gerar arquivos para gráfica
+          </Link>
+        )}
         <a href={`${exportar}?formato=zip`} className={classesDoBotao("secundario")}>
           Baixar QR Codes (ZIP)
         </a>
@@ -48,10 +55,44 @@ export default async function PaginaDoLote({ params }: PageProps<"/admin/lotes/[
         {lote.tipo ? rotuloDoTipo(lote.tipo) : "Sem tipo definido"} · criado em {formatarDataHora(lote.criadoEm)}
         {lote.descricao ? ` · ${lote.descricao}` : ""}
       </p>
-      <p className="mb-4 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
-        Em <strong>Gerar arquivos para gráfica</strong> você baixa a arte final de cada cartão (PDF), o controle de
-        produção e os QR Codes. O ZIP de QR Codes daqui contém só os SVGs e o <code className="font-mono">lote.csv</code>.
-      </p>
+      {template ? (
+        <div id="grafica" className="mb-4 scroll-mt-6">
+          <Painel titulo="Arquivos para a gráfica">
+            <p className="text-sm text-slate-700">
+              Template usado: <strong className="text-slate-900">{template.nome}</strong>
+              <span className="text-slate-500">
+                {" "}
+                · {formatarDimensoesMm(template.larguraDaPaginaMm, template.alturaDaPaginaMm)}
+                {template.status === "INATIVO" ? " · inativo para novos lotes" : ""}
+              </span>
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Este lote é sempre gerado com este template, mesmo que outro vire o padrão do produto. Cada página do PDF
+              é a arte original com o QR Code de um cartão.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <a href={`${baixar}?arquivo=zip`} className={classesDoBotao("primario")}>
+                Baixar pacote para gráfica
+              </a>
+              <a href={`${baixar}?arquivo=pdf`} className={classesDoBotao("secundario")}>
+                Baixar PDF do lote
+              </a>
+              <a href={`${baixar}?arquivo=csv`} className={classesDoBotao("secundario")}>
+                Baixar CSV
+              </a>
+              <Link href={`/admin/templates-impressao/${template.id}`} className={classesDoBotao("secundario")}>
+                Visualizar template
+              </Link>
+            </div>
+          </Painel>
+        </div>
+      ) : (
+        <p className="mb-4 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
+          Em <strong>Gerar arquivos para gráfica</strong> você baixa a arte final de cada cartão (PDF), o controle de
+          produção e os QR Codes. O ZIP de QR Codes daqui contém só os SVGs e o{" "}
+          <code className="font-mono">lote.csv</code>.
+        </p>
+      )}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-left text-sm">
