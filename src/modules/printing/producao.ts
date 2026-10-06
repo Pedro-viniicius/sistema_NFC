@@ -48,6 +48,13 @@ export const COLUNAS_DO_CONTROLE = [
   "arquivo_qr",
 ] as const;
 
+/** Nos lotes gerados com um template de impressão, o controle traz também o nome do template. */
+export const COLUNAS_DO_CONTROLE_COM_TEMPLATE = [
+  ...COLUNAS_DO_CONTROLE.slice(0, 3),
+  "template",
+  ...COLUNAS_DO_CONTROLE.slice(3),
+] as const;
+
 function falha(mensagem: string): ErroDeDominio {
   return new ErroDeDominio("IMPRESSAO_INVALIDA", mensagem);
 }
@@ -212,17 +219,36 @@ export async function gerarPdfDoPacote(pacote: PacoteDeProducao): Promise<Uint8A
 }
 
 /**
+ * Escapa um valor de texto livre para o CSV: aspas quando há vírgula, aspas ou quebra de linha, e
+ * um apóstrofo antes de valores que uma planilha interpretaria como fórmula.
+ */
+function campoDeTexto(valor: string): string {
+  const semFormula = /^[=+\-@\t\r]/.test(valor) ? `'${valor}` : valor;
+  return /[",\r\n]/.test(semFormula) ? `"${semFormula.replaceAll('"', '""')}"` : semFormula;
+}
+
+export interface DadosDoControle {
+  itens: readonly ItemDeProducao[];
+  /** Produto dos cartões (GOOGLE, INSTAGRAM…). */
+  tipo: string;
+  /** Nome do template de impressão do lote. Ausente nos lotes sem template: a coluna não é incluída. */
+  template?: string;
+}
+
+/**
  * Planilha de controle (UTF-8, separada por vírgulas). `url_nfc` e `url_qr` existem para deixar
  * explícito que o chip e o QR de cada cartão recebem a MESMA URL: as duas colunas saem da mesma
  * função canônica (a do QR passa pelo próprio módulo que desenha o QR).
- * Todos os valores vêm de alfabetos controlados: não há vírgulas, aspas ou fórmulas a escapar.
+ * Só o nome do template é texto livre, e por isso é o único valor escapado.
  */
-export function gerarCsvDeControle(pacote: PacoteDeProducao): string {
-  const linhas = pacote.itens.map((item) =>
+export function montarCsvDeControle({ itens, tipo, template }: DadosDoControle): string {
+  const comTemplate = template !== undefined;
+  const linhas = itens.map((item) =>
     [
       item.numero,
       item.codigo,
-      pacote.modelo.tipo,
+      tipo,
+      ...(comTemplate ? [campoDeTexto(template)] : []),
       item.url,
       getCardPublicUrl(item.codigo),
       conteudoDoQr(item.codigo),
@@ -230,7 +256,13 @@ export function gerarCsvDeControle(pacote: PacoteDeProducao): string {
       item.arquivoQr,
     ].join(","),
   );
-  return [COLUNAS_DO_CONTROLE.join(","), ...linhas].join("\r\n") + "\r\n";
+  const colunas = comTemplate ? COLUNAS_DO_CONTROLE_COM_TEMPLATE : COLUNAS_DO_CONTROLE;
+  return [colunas.join(","), ...linhas].join("\r\n") + "\r\n";
+}
+
+/** Planilha de controle de um pacote do caminho sem template (formato inalterado, sem a coluna `template`). */
+export function gerarCsvDeControle(pacote: PacoteDeProducao): string {
+  return montarCsvDeControle({ itens: pacote.itens, tipo: pacote.modelo.tipo });
 }
 
 export function gerarLeiaMe(pacote: PacoteDeProducao, comIndividuais = true): string {
