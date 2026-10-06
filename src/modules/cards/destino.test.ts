@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validarDestinoUrl } from "./destino";
+import { sugerirTipo, validarDestinoUrl } from "./destino";
 
 const producao = { desenvolvimento: false } as const;
 
@@ -119,5 +119,14 @@ describe("destinos rejeitados", () => {
     expect(rejeitado("https://instagram.com/empresa", opcoes)).toContain("Google");
     rejeitado("https://google.com.malicioso.com/review", opcoes);
     rejeitado("https://g.page.malicioso.com/r/x/review", opcoes);
+  });
+});
+
+describe("sugestão de tipo ao colar um link", () => {
+  it("reconhece Instagram, Google e outros links", () => {
+    expect(sugerirTipo("https://www.instagram.com/empresa", producao)).toBe("INSTAGRAM");
+    expect(sugerirTipo("https://g.page/r/example/review", producao)).toBe("GOOGLE");
+    expect(sugerirTipo("https://empresa.com.br", producao)).toBe("GENERICO");
+    expect(sugerirTipo("javascript:alert(1)", producao)).toBeNull();
   });
 });

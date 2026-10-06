@@ -4,6 +4,7 @@ import { SignJWT, jwtVerify } from "jose";
 const EMISSOR = "sistema-nfc";
 const PUBLICO = "painel-admin";
 
+export const COOKIE_DE_SESSAO = "sessao_admin";
 export const DURACAO_DA_SESSAO_EM_SEGUNDOS = 60 * 60 * 24 * 7;
 
 export function assinarTokenDeSessao(

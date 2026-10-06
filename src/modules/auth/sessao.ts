@@ -7,31 +7,36 @@ import { obterBanco } from "@/db/cliente";
 import { emProducao, obterAuthSecret } from "@/lib/env";
 import { buscarAdministradorPorId } from "./servico";
 import {
+  COOKIE_DE_SESSAO,
   DURACAO_DA_SESSAO_EM_SEGUNDOS,
   assinarTokenDeSessao,
   verificarTokenDeSessao,
 } from "./token";
-
-export const COOKIE_DE_SESSAO = "sessao_admin";
 
 export interface AdminAutenticado {
   id: string;
   email: string;
 }
 
-export async function iniciarSessao(adminId: string): Promise<void> {
-  const token = await assinarTokenDeSessao(adminId, obterAuthSecret());
-  (await cookies()).set(COOKIE_DE_SESSAO, token, {
+function opcoesDoCookie(duracaoEmSegundos: number) {
+  return {
     httpOnly: true,
     secure: emProducao(),
     sameSite: "lax",
     path: "/",
-    maxAge: DURACAO_DA_SESSAO_EM_SEGUNDOS,
-  });
+    maxAge: duracaoEmSegundos,
+  } as const;
+}
+
+export async function iniciarSessao(adminId: string): Promise<void> {
+  const token = await assinarTokenDeSessao(adminId, obterAuthSecret());
+  (await cookies()).set(COOKIE_DE_SESSAO, token, opcoesDoCookie(DURACAO_DA_SESSAO_EM_SEGUNDOS));
 }
 
 export async function encerrarSessao(): Promise<void> {
-  (await cookies()).delete(COOKIE_DE_SESSAO);
+  // Expira o cookie com os mesmos atributos da criação: o navegador ignora a remoção
+  // de um cookie Secure quando ela não vem marcada como Secure.
+  (await cookies()).set(COOKIE_DE_SESSAO, "", opcoesDoCookie(0));
 }
 
 /**

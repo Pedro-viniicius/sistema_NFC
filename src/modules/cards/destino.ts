@@ -101,3 +101,13 @@ export function validarDestinoUrl(entrada: unknown, opcoes: OpcoesDestino = {}):
 
   return { ok: true, url: url.href };
 }
+
+/**
+ * Sugere o tipo a partir de um link completo (usado ao colar a URL na ativação rápida).
+ * Devolve null se o link não for um destino válido.
+ */
+export function sugerirTipo(entrada: unknown, opcoes: Pick<OpcoesDestino, "desenvolvimento"> = {}): TipoDestino | null {
+  if (validarDestinoUrl(entrada, { ...opcoes, tipo: "INSTAGRAM" }).ok) return "INSTAGRAM";
+  if (validarDestinoUrl(entrada, { ...opcoes, tipo: "GOOGLE" }).ok) return "GOOGLE";
+  return validarDestinoUrl(entrada, opcoes).ok ? "GENERICO" : null;
+}

@@ -1,0 +1,144 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { obterBanco } from "@/db/cliente";
+import { BotaoCopiar } from "@/components/botao-copiar";
+import { Painel, SeloDeStatus, classesDoBotao, rotuloDoTipo } from "@/components/ui";
+import { formatarDataHora } from "@/lib/datas";
+import { exigirAdmin } from "@/modules/auth/sessao";
+import { buscarLotePorId } from "@/modules/batches/servico";
+import { resumirCartao } from "@/modules/cards/apresentacao";
+import { normalizarCodigo } from "@/modules/cards/codigo";
+import { buscarCartaoPorCodigo } from "@/modules/cards/repositorio";
+import { nomeDoArquivoQr } from "@/modules/qr/gerar";
+import { BotoesDeStatus, EditorDeDescricao, EditorDeDestino } from "./controles";
+
+function Dado({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-sm text-slate-500">{rotulo}</dt>
+      <dd className="mt-0.5 font-medium text-slate-900">{children}</dd>
+    </div>
+  );
+}
+
+export default async function PaginaDoCartao({ params }: PageProps<"/admin/cartoes/[codigo]">) {
+  await exigirAdmin();
+  const codigo = normalizarCodigo((await params).codigo);
+  if (!codigo) notFound();
+
+  const db = obterBanco();
+  const cartao = await buscarCartaoPorCodigo(db, codigo);
+  if (!cartao) notFound();
+
+  const resumo = resumirCartao(cartao);
+  const lote = cartao.loteId ? await buscarLotePorId(db, cartao.loteId) : null;
+  const urlDoQr = `/admin/cartoes/${cartao.codigo}/qr`;
+
+  return (
+    <>
+      <p className="mb-3 text-sm">
+        <Link href="/admin/cartoes" className="text-slate-500 hover:text-slate-900">
+          ← Cartões
+        </Link>
+      </p>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <h1 className="font-mono text-3xl font-semibold tracking-wider text-slate-900">{cartao.codigo}</h1>
+        <SeloDeStatus status={cartao.status} />
+        <span className="text-sm text-slate-500">Código permanente — não pode ser alterado</span>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="space-y-4 lg:col-span-2">
+          <Painel
+            titulo="URL permanente"
+            descricao="É esta URL que vai no QR Code impresso e no chip NFC. Ela nunca muda, mesmo quando o destino é alterado."
+          >
+            <p className="mb-1 text-sm text-slate-500">URL para gravar no NFC:</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="min-w-0 flex-1 break-all rounded-lg bg-slate-100 px-3 py-2.5 font-mono text-sm text-slate-900">
+                {resumo.urlPermanente}
+              </code>
+              <BotaoCopiar texto={resumo.urlPermanente} rotulo="Copiar URL permanente" />
+            </div>
+          </Painel>
+
+          <Painel titulo="Destino atual" descricao="Para onde o cartão redireciona hoje. Pode ser alterado a qualquer momento.">
+            <EditorDeDestino cartao={resumo} />
+          </Painel>
+
+          <Painel titulo="Informações">
+            <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <Dado rotulo="Status">
+                <SeloDeStatus status={cartao.status} />
+              </Dado>
+              <Dado rotulo="Tipo">{rotuloDoTipo(cartao.tipo)}</Dado>
+              <Dado rotulo="Lote">
+                {lote ? (
+                  <Link href={`/admin/lotes/${lote.identificador}`} className="underline underline-offset-2">
+                    {lote.identificador}
+                  </Link>
+                ) : (
+                  "—"
+                )}
+              </Dado>
+              <Dado rotulo="Data de criação">{formatarDataHora(cartao.criadoEm)}</Dado>
+              <Dado rotulo="Data de ativação">{formatarDataHora(cartao.ativadoEm)}</Dado>
+              <Dado rotulo="Última alteração">{formatarDataHora(cartao.atualizadoEm)}</Dado>
+              <Dado rotulo="Total de acessos">{cartao.totalAcessos.toLocaleString("pt-BR")}</Dado>
+              <Dado rotulo="Último acesso">{formatarDataHora(cartao.ultimoAcessoEm)}</Dado>
+            </dl>
+            <p className="mt-3 text-xs text-slate-500">
+              Os acessos somam leituras por QR Code e por NFC: as duas usam a mesma URL, então não é possível
+              distingui-las.
+            </p>
+            <div className="mt-5 border-t border-slate-100 pt-5">
+              <EditorDeDescricao cartao={resumo} />
+            </div>
+          </Painel>
+        </div>
+
+        <div className="space-y-4">
+          <Painel titulo="QR Code" descricao="Contém apenas a URL permanente.">
+            {/* SVG gerado pelo próprio sistema, servido por rota autenticada. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={urlDoQr}
+              alt={`QR Code do cartão ${cartao.codigo}`}
+              width={240}
+              height={240}
+              className="mx-auto w-full max-w-60 rounded-lg border border-slate-200 bg-white"
+            />
+            <div className="mt-4 grid gap-2">
+              <a
+                href={`${urlDoQr}?formato=svg&baixar=1`}
+                download={nomeDoArquivoQr(cartao.codigo, "svg")}
+                className={classesDoBotao("primario")}
+              >
+                Baixar QR Code (SVG)
+              </a>
+              <a
+                href={`${urlDoQr}?formato=png&baixar=1`}
+                download={nomeDoArquivoQr(cartao.codigo, "png")}
+                className={classesDoBotao("secundario")}
+              >
+                Baixar PNG
+              </a>
+            </div>
+            <p className="mt-3 text-xs text-slate-500">Prefira o SVG para impressão profissional.</p>
+          </Painel>
+
+          <Painel
+            titulo={cartao.status === "INATIVO" ? "Ativar cartão" : "Desativar cartão"}
+            descricao={
+              cartao.status === "INATIVO"
+                ? "O cartão volta a funcionar com o destino já salvo."
+                : "Um cartão inativo mostra uma página de indisponível em vez de redirecionar."
+            }
+          >
+            <BotoesDeStatus cartao={resumo} />
+          </Painel>
+        </div>
+      </div>
+    </>
+  );
+}
