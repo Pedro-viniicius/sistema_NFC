@@ -5,11 +5,15 @@ import { codigoValido } from "@/modules/cards/codigo";
 import { listarCartoes, listarCartoesDoLote } from "@/modules/cards/repositorio";
 import { criarBancoDeTeste } from "../../../tests/banco-de-teste";
 import { gerarCsvDoLote, gerarZipDoLote } from "./exportacao";
+import { buscarCartaoPorCodigo } from "@/modules/cards/repositorio";
+import { configurarDestino } from "@/modules/cards/servico";
+import { resolverRedirecionamento } from "@/modules/redirects/resolver";
 import {
   QUANTIDADE_MAXIMA_POR_LOTE,
   buscarLotePorIdentificador,
   criarLote,
   esquemaDeNovoLote,
+  excluirLote,
   listarLotes,
 } from "./servico";
 
@@ -116,5 +120,55 @@ describe("exportação para a gráfica", () => {
     expect(svg).toContain("<svg");
     const csv = await zip.file(`${lote.identificador}/lote.csv`)?.async("string");
     expect(csv).toBe(gerarCsvDoLote(cartoes));
+  });
+});
+
+describe("exclusão de lote", () => {
+  let banco: Banco;
+
+  beforeAll(async () => {
+    banco = await criarBancoDeTeste();
+  });
+
+  it("apaga o lote e todos os seus cartões, sem tocar nos outros lotes", async () => {
+    const alvo = await criarLote(banco, { quantidade: 4, tipo: "GOOGLE", descricao: null }, em2026);
+    const outro = await criarLote(banco, { quantidade: 2, tipo: "INSTAGRAM", descricao: null }, em2026);
+
+    const resultado = await excluirLote(banco, alvo.lote.identificador, alvo.lote.identificador);
+    expect(resultado).toEqual({ identificador: alvo.lote.identificador, cartoesExcluidos: 4 });
+
+    await expect(buscarLotePorIdentificador(banco, alvo.lote.identificador)).rejects.toThrow("Lote não encontrado");
+    for (const cartao of alvo.cartoes) expect(await buscarCartaoPorCodigo(banco, cartao.codigo)).toBeNull();
+    expect((await listarLotes(banco)).map((lote) => lote.identificador)).toEqual([outro.lote.identificador]);
+    expect(await listarCartoesDoLote(banco, outro.lote.id)).toHaveLength(2);
+  });
+
+  it("os cartões apagados deixam de redirecionar, mesmo os que estavam configurados", async () => {
+    const { lote, cartoes } = await criarLote(banco, { quantidade: 2, tipo: "GOOGLE", descricao: null }, em2026);
+    const [vendido] = cartoes;
+    await configurarDestino(banco, {
+      codigo: vendido.codigo,
+      tipo: "GOOGLE",
+      destinoUrl: "https://g.page/r/cliente/review",
+    });
+    expect((await resolverRedirecionamento(banco, vendido.codigo)).situacao).toBe("REDIRECIONAR");
+
+    await excluirLote(banco, lote.identificador, ` ${lote.identificador} `);
+    expect(await resolverRedirecionamento(banco, vendido.codigo)).toEqual({
+      situacao: "NAO_ENCONTRADO",
+      motivo: "INEXISTENTE",
+    });
+  });
+
+  it("exige o identificador digitado como confirmação e não apaga nada sem ele", async () => {
+    const { lote } = await criarLote(banco, { quantidade: 3, tipo: null, descricao: null }, em2026);
+    for (const confirmacao of ["", "apagar", lote.identificador.toUpperCase(), "lote-2026-999"]) {
+      await expect(excluirLote(banco, lote.identificador, confirmacao)).rejects.toThrow("Para confirmar, digite");
+    }
+    expect(await listarCartoesDoLote(banco, lote.id)).toHaveLength(3);
+  });
+
+  it("informa quando o lote não existe", async () => {
+    await expect(excluirLote(banco, "lote-1999-001", "lote-1999-001")).rejects.toThrow("Lote não encontrado");
   });
 });

@@ -1,7 +1,7 @@
 // Lotes de fabricação: gera vários cartões de uma vez para enviar à gráfica.
 import { desc, eq, max } from "drizzle-orm";
 import { z } from "zod";
-import { lotes, type Cartao, type Lote } from "@/db/schema";
+import { cartoes, lotes, type Cartao, type Lote } from "@/db/schema";
 import type { Banco } from "@/db/tipos";
 import { ErroDeDominio } from "@/lib/erros";
 import { criarCartoes, TAMANHO_MAXIMO_DESCRICAO } from "@/modules/cards/servico";
@@ -118,4 +118,35 @@ export async function buscarLotePorIdentificador(db: Banco, identificador: strin
 export async function buscarLotePorId(db: Banco, id: string): Promise<Lote | null> {
   const [lote] = await db.select().from(lotes).where(eq(lotes.id, id)).limit(1);
   return lote ?? null;
+}
+
+export interface LoteExcluido {
+  identificador: string;
+  cartoesExcluidos: number;
+}
+
+/**
+ * Apaga o lote e TODOS os seus cartões, em uma única transação. É irreversível: os QR Codes e os
+ * chips NFC desses cartões deixam de funcionar (a URL permanente passa a responder 404).
+ * Como proteção contra engano, exige que o identificador do lote seja digitado como confirmação.
+ */
+export async function excluirLote(
+  db: Banco,
+  identificador: string,
+  confirmacao: string,
+): Promise<LoteExcluido> {
+  if (confirmacao.trim() !== identificador) {
+    throw new ErroDeDominio(
+      "ENTRADA_INVALIDA",
+      `Para confirmar, digite o identificador do lote exatamente como aparece: ${identificador}`,
+    );
+  }
+  return db.transaction(async (tx) => {
+    const [lote] = await tx.select().from(lotes).where(eq(lotes.identificador, identificador)).for("update");
+    if (!lote) throw new ErroDeDominio("LOTE_NAO_ENCONTRADO", "Lote não encontrado.");
+
+    const excluidos = await tx.delete(cartoes).where(eq(cartoes.loteId, lote.id)).returning({ id: cartoes.id });
+    await tx.delete(lotes).where(eq(lotes.id, lote.id));
+    return { identificador: lote.identificador, cartoesExcluidos: excluidos.length };
+  });
 }
