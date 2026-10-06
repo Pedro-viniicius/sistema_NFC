@@ -77,7 +77,8 @@ recusa `http://` e `localhost`, e o painel mostra um aviso se a URL for um ender
 3. **Variáveis:** em *Settings → Environment Variables*, cadastre `AUTH_SECRET` e `NEXT_PUBLIC_APP_URL`
    (o domínio definitivo, para todos os ambientes — assim nenhum QR sai com URL de preview).
 4. **Domínio:** em *Settings → Domains*, adicione `go.meudominio.com` e crie o CNAME indicado no seu DNS.
-5. **Região:** em *Settings → Functions*, escolha a região mais próxima do banco (ex.: `gru1` com Neon em São Paulo).
+5. **Região:** as funções rodam em São Paulo (`gru1`), definido em `vercel.json`. Crie o banco na mesma região
+   (Neon `sa-east-1`); se o banco ficar em outro lugar, ajuste `regions` para a região mais próxima dele.
    Isso é o que mais influencia a velocidade do redirecionamento.
 6. **Migrações:** aplique no banco de produção a partir da sua máquina:
    ```bash
