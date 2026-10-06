@@ -101,6 +101,11 @@ export interface OpcoesDoTemplate {
   launch?: boolean;
   /** Arquivo anexado ao PDF. */
   anexo?: boolean;
+  /**
+   * Selo de procedência "Content Credentials" (C2PA), anexado como fazem os geradores de imagem.
+   * "falso" declara o selo, mas anexa outro tipo de arquivo.
+   */
+  seloDeProcedencia?: boolean | "falso";
   trimBoxMm?: number;
   /** Dados extras sem uso (bytes), para simular uma arte pesada. */
   pesoExtraBytes?: number;
@@ -214,6 +219,17 @@ export function criarPdfDeTemplate(opcoes: OpcoesDoTemplate = {}): TemplateDeTes
     extras.push(`<< /Type /Filespec /F (anexo.txt) /EF << /F ${arquivo} 0 R >> >>`);
     const especificacao = proximo++;
     noCatalogo += ` /Names << /EmbeddedFiles << /Names [(anexo.txt) ${especificacao} 0 R] >> >>`;
+  }
+  if (opcoes.seloDeProcedencia) {
+    const subtipo = opcoes.seloDeProcedencia === "falso" ? "/application#2Foctet-stream" : "/application#2Fc2pa";
+    extras.push({ dicionario: `/Type /EmbeddedFile /Subtype ${subtipo}`, dados: new Uint8Array(latin1("jumb...c2pa...manifesto")) });
+    const arquivo = proximo++;
+    extras.push(
+      `<< /Type /Filespec /AFRelationship /C2PA_Manifest /Desc (Content Credentials) /F (Content Credentials) ` +
+        `/UF (Content Credentials) /Subtype (application/c2pa) /EF << /F ${arquivo} 0 R >> >>`,
+    );
+    const especificacao = proximo++;
+    noCatalogo += ` /AF [ ${especificacao} 0 R ] /Names << /EmbeddedFiles << /Names [ (Content Credentials) ${especificacao} 0 R ] >> >>`;
   }
   if (opcoes.pesoExtraBytes) {
     // Bytes pseudoaleatórios (não comprimíveis), ligados aos recursos da página como um objeto qualquer.

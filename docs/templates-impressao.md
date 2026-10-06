@@ -22,6 +22,8 @@ O QR contém **sempre a URL permanente do cartão** (a mesma gravada no chip NFC
 - **Fontes incorporadas ou convertidas em curvas.** O arquivo é impresso exatamente como foi enviado.
 - **Sangria e marcas, se a gráfica exigir, já no arquivo.** O sistema não acrescenta nem remove sangria.
 - **Sem senha, sem scripts, sem ações e sem anexos.** PDFs protegidos ou com conteúdo ativo são recusados.
+  A única exceção é o **selo de procedência "Content Credentials" (C2PA)** que ferramentas de criação de imagens,
+  inclusive geradores por IA, anexam ao PDF: é só um registro assinado de como a imagem foi feita, e é aceito.
 - **Até 25 MB.** A página deve ter entre 20 mm e 2.000 mm de lado.
 - Um QR legível pede **pelo menos 15 mm de lado** e módulos de **pelo menos 0,4 mm**. O painel avisa quando a
   área escolhida fica abaixo disso (é um aviso, não um bloqueio).

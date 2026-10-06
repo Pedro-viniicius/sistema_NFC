@@ -113,14 +113,51 @@ const ACOES_PROIBIDAS = new Map([
   ["Rendition", "uma ação de mídia"],
 ]);
 
+function nome(objeto: PDFObject | undefined): string | null {
+  return objeto instanceof PDFName ? objeto.decodeText() : null;
+}
+
+/**
+ * Selo de procedência "Content Credentials" (padrão C2PA). Ferramentas de criação de imagens —
+ * inclusive geradores por IA — gravam esse selo no PDF como um arquivo anexado. É só um registro
+ * assinado de como a imagem foi feita: nenhum leitor de PDF o executa. Por isso ele é o ÚNICO tipo
+ * de anexo aceito, e só quando está declarado exatamente como manda o padrão.
+ *
+ * Devolve os objetos que formam o selo (a especificação do arquivo, o dicionário /EF e o fluxo),
+ * ou null se o anexo for qualquer outra coisa.
+ */
+function objetosDoSeloDeProcedencia(contexto: PDFContext, especificacao: PDFDict): PDFObject[] | null {
+  if (nome(especificacao.get(PDFName.of("AFRelationship"))) !== "C2PA_Manifest") return null;
+  const anexos = contexto.lookup(especificacao.get(PDFName.of("EF")));
+  if (!(anexos instanceof PDFDict) || anexos.values().length === 0) return null;
+
+  const objetos: PDFObject[] = [especificacao, anexos];
+  for (const referencia of anexos.values()) {
+    const fluxo = contexto.lookup(referencia);
+    if (!(fluxo instanceof PDFStream)) return null;
+    if (nome(fluxo.dict.get(PDFName.of("Subtype"))) !== "application/c2pa") return null;
+    objetos.push(fluxo, fluxo.dict);
+  }
+  return objetos;
+}
+
 /**
  * Procura conteúdo ativo em TODOS os objetos do arquivo (inclusive os que não estão ligados à
  * página): scripts, ações de execução e arquivos anexados. Devolve a descrição do que encontrou.
  */
 function procurarConteudoAtivo(contexto: PDFContext): string | null {
-  const pendentes: PDFObject[] = contexto.enumerateIndirectObjects().map(([, objeto]) => objeto);
-  const vistos = new Set<PDFObject>();
+  const todos: PDFObject[] = contexto.enumerateIndirectObjects().map(([, objeto]) => objeto);
 
+  // Primeiro, os anexos que são apenas o selo de procedência: esses não contam como conteúdo ativo.
+  const selo = new Set<PDFObject>();
+  for (const objeto of todos) {
+    if (objeto instanceof PDFDict && objeto.has(PDFName.of("EF"))) {
+      for (const parte of objetosDoSeloDeProcedencia(contexto, objeto) ?? []) selo.add(parte);
+    }
+  }
+
+  const pendentes = [...todos];
+  const vistos = new Set<PDFObject>();
   for (let objeto = pendentes.pop(); objeto !== undefined; objeto = pendentes.pop()) {
     if (vistos.has(objeto)) continue;
     vistos.add(objeto);
@@ -128,18 +165,12 @@ function procurarConteudoAtivo(contexto: PDFContext): string | null {
     if (objeto instanceof PDFStream) {
       pendentes.push(objeto.dict);
     } else if (objeto instanceof PDFDict) {
-      const tipoDeAcao = objeto.get(PDFName.of("S"));
-      if (tipoDeAcao instanceof PDFName) {
-        const proibida = ACOES_PROIBIDAS.get(tipoDeAcao.decodeText());
-        if (proibida) return proibida;
-      }
+      const proibida = ACOES_PROIBIDAS.get(nome(objeto.get(PDFName.of("S"))) ?? "");
+      if (proibida) return proibida;
       if (objeto.has(PDFName.of("JS")) || objeto.has(PDFName.of("JavaScript"))) return "JavaScript";
-      const tipo = objeto.get(PDFName.of("Type"));
-      const anexo =
-        objeto.has(PDFName.of("EmbeddedFiles")) ||
-        objeto.has(PDFName.of("EF")) ||
-        (tipo instanceof PDFName && tipo.decodeText() === "EmbeddedFile");
-      if (anexo) return "arquivos anexados";
+      // Qualquer arquivo anexado que não seja o selo de procedência.
+      const anexo = objeto.has(PDFName.of("EF")) || nome(objeto.get(PDFName.of("Type"))) === "EmbeddedFile";
+      if (anexo && !selo.has(objeto)) return "arquivos anexados";
       for (const valor of objeto.values()) pendentes.push(valor);
     } else if (objeto instanceof PDFArray) {
       for (const item of objeto.asArray()) pendentes.push(item);

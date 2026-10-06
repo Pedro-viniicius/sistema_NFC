@@ -425,7 +425,7 @@ o sistema não finge que sabe. A contagem é feita depois da resposta, para não
 
 ## Testes
 
-`pnpm test` roda 371 testes contra um PostgreSQL em memória (PGlite) com as migrações reais:
+`pnpm test` roda 372 testes contra um PostgreSQL em memória (PGlite) com as migrações reais:
 
 - geração e validação de código (formato, alfabeto, unicidade, rejeição de inválidos);
 - URL canônica e configuração de domínio;
@@ -442,7 +442,7 @@ o sistema não finge que sabe. A contagem é feita depois da resposta, para não
   pacote com arte pesada;
 - exclusão de lote: apaga lote e cartões, exige confirmação e não afeta outros lotes;
 - cenário final: destino muda, cartão físico não;
-- templates de impressão (147 testes, com a biblioteca de PDF de verdade e arquivos reais em
+- templates de impressão (148 testes, com a biblioteca de PDF de verdade e arquivos reais em
   `tests/fixtures/templates`): validação do envio, coordenadas, renderização (caixas e bytes da arte preservados,
   QR lido da página renderizada com pdf.js + canvas e decodificado com jsQR), ciclo de vida, produção, rotas e
   a demonstração com o cartão `K8M4T2`.

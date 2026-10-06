@@ -43,3 +43,6 @@ next-env.d.ts
 
 # armazenamento local de desenvolvimento (PDFs de template enviados no `next dev`)
 /.armazenamento-local/
+
+# artes do usuário para envio pelo painel (não fazem parte do código)
+/artes/

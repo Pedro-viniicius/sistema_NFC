@@ -141,6 +141,26 @@ describe("arquivos recusados", () => {
     expect(await motivoDaRecusa(criarPdfDeTemplate({ anexo: true }).bytes)).toContain("arquivos anexados");
   });
 
+  it("aceita o selo de procedência (Content Credentials / C2PA) que os geradores de imagem anexam", async () => {
+    // O único anexo aceito: um registro assinado de como a imagem foi criada, que nada executa.
+    const comSelo = criarPdfDeTemplate({ seloDeProcedencia: true }).bytes;
+    expect(Buffer.from(comSelo).toString("latin1")).toContain("/EmbeddedFiles");
+    const pdf = await validarPdfDoTemplate(comSelo, "cartao_gerado_por_ia.pdf");
+    expect(pdf.larguraDaPaginaMm).toBeCloseTo(130.05, 2);
+
+    // Dizer que é o selo não basta: o arquivo anexado precisa ser mesmo do tipo do selo.
+    expect(await motivoDaRecusa(criarPdfDeTemplate({ seloDeProcedencia: "falso" }).bytes)).toContain(
+      "arquivos anexados",
+    );
+    // Selo junto com outro anexo, ou com script: continua recusado.
+    expect(await motivoDaRecusa(criarPdfDeTemplate({ seloDeProcedencia: true, anexo: true }).bytes)).toContain(
+      "arquivos anexados",
+    );
+    expect(await motivoDaRecusa(criarPdfDeTemplate({ seloDeProcedencia: true, javascript: true }).bytes)).toContain(
+      "JavaScript",
+    );
+  });
+
   it("dimensões absurdas", async () => {
     expect(await motivoDaRecusa(criarPdfDeTemplate({ larguraMm: 5, alturaMm: 5 }).bytes)).toContain(
       "dimensões fora do aceito",
