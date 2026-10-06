@@ -187,8 +187,17 @@ const SCRIPT = `
     if(d.length>6){var m=d.length===11?7:6;t='('+d.slice(0,2)+') '+d.slice(2,m)+'-'+d.slice(m);}
     zap.value=t;
   });
-  form.addEventListener('input',guardar);
-  form.addEventListener('change',guardar);
+  function aoMexer(e){
+    var campo=e.target&&e.target.name;
+    if(campo){
+      var erro=document.getElementById('erro-'+campo);
+      if(erro){erro.textContent='';erro.hidden=true;}
+      cada('[name="'+campo+'"]',function(c){c.removeAttribute('aria-invalid');});
+    }
+    guardar();
+  }
+  form.addEventListener('input',aoMexer);
+  form.addEventListener('change',aoMexer);
   form.addEventListener('submit',function(e){
     if(atual!==4){e.preventDefault();avancar(secoes[atual].querySelector('[data-avancar]'));return;}
     var b=document.getElementById('ativar');

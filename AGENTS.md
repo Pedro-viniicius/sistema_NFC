@@ -26,3 +26,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   usado por um lote não muda mais (arquivo e área do QR).
 - **Arquivos:** nada persiste no disco da Vercel. Use a interface de `src/modules/storage` (Vercel Blob privado);
   o envio do PDF vai do navegador direto para o Blob, nunca por uma função ou Server Action.
+- **Rota pública `/c/[codigo]`:** `GET` nunca grava nada no cartão (robôs de pré-visualização abrem links) e
+  nenhuma resposta pode ficar em cache. O único caminho público que grava é o `POST` da ativação pelo cliente
+  (`src/modules/activation`), e só enquanto o cartão está "não configurado", em uma transação.
+- **Dados pessoais** (tabela `contatos`): nunca vão para logs. Textos mostrados ao cliente na ativação usam
+  linguagem de balcão: nada de "URL", "destino", "redirecionamento" ou "lead".

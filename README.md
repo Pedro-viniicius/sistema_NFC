@@ -66,6 +66,8 @@ revise o SQL em `drizzle/` e aplique com `pnpm db:migrate`.
 | `DATABASE_URL` | Conexão PostgreSQL. No Neon, use a URL com *pooler* e `sslmode=require`. |
 | `AUTH_SECRET` | Segredo que assina a sessão do painel. Mínimo 32 caracteres (`openssl rand -base64 48`). |
 | `NEXT_PUBLIC_APP_URL` | Domínio canônico dos cartões, ex.: `https://go.meudominio.com`. **É o que vai impresso no QR e gravado no NFC.** |
+| `ATENDIMENTO_WHATSAPP` | WhatsApp de atendimento (com DDD), usado na ativação pelo cliente. |
+| `RESPONSAVEL_DADOS_NOME`, `RESPONSAVEL_DADOS_DOCUMENTO`, `RESPONSAVEL_DADOS_EMAIL` | Quem responde pelos dados pessoais dos contatos (aparece em "Como usamos seus dados"). Sem estas e a anterior, a ativação pelo cliente não pode ser ligada. |
 | `BLOB_READ_WRITE_TOKEN` | Acesso ao Vercel Blob, onde ficam os PDFs dos templates de impressão. Criada pela Vercel ao conectar o Blob store. Opcional em `pnpm dev` (sem ela, os PDFs vão para `.armazenamento-local/`). |
 
 `NEXT_PUBLIC_APP_URL` é fixada no momento do build: se mudar, faça um novo deploy. Em produção o sistema
@@ -187,6 +189,19 @@ em preto, em branco ou não ser impresso. Depois confira em **Ver amostra (PDF)*
 Se o arquivo for recusado, a mensagem diz o motivo (não é PDF, tamanho diferente, mais de uma página, QR fora da
 área etc.) e a arte anterior continua valendo.
 
+### Deixar o cliente ativar o próprio cartão
+Na página do lote, em **Ativação pelo cliente**, clique em **Ligar ativação pelo cliente** — só quando os cartões
+estiverem saindo para entrega. A partir daí, quem abrir um cartão ainda não ativado daquele lote (pelo QR Code ou
+pelo NFC) vê um passo a passo de menos de 1 minuto: informa a loja, o contato e o Instagram ou o link do Google,
+confirma e o cartão já passa a funcionar.
+
+Os contatos aparecem em **Contatos** (o menu mostra quantos são novos), com situação, observação, botão de conversa
+no WhatsApp e exportação em CSV. Depois de ativado, só você troca o link, pelo painel.
+
+Antes de ligar pela primeira vez, configure as variáveis `ATENDIMENTO_WHATSAPP` e `RESPONSAVEL_DADOS_*` e revise
+o texto "Como usamos seus dados", que é um **rascunho**. Detalhes em
+[docs/ativacao-pelo-cliente.md](docs/ativacao-pelo-cliente.md).
+
 ### Apagar um lote
 Página do lote → **Apagar lote** → digite o identificador do lote para confirmar. O lote e **todos os cartões
 dele** são apagados e não há como desfazer: os QR Codes e chips NFC desses cartões passam a responder
@@ -230,6 +245,8 @@ src/
   modules/
     cards/                     código, URL canônica, validação de destino, status, consultas e mutações
     redirects/                 decisão de redirecionamento e respostas HTTP
+    activation/                ativação pelo cliente: validação, página pública, limite de tentativas, privacidade
+    contacts/                  contatos de quem ativou: lista, acompanhamento, CSV e exclusão
     qr/                        geração de QR Code (SVG/PNG)
     batches/                   lotes e exportação CSV/ZIP
     printing/                  arte de impressão dos lotes sem template: modelos, PDF, controle e pacote
@@ -267,6 +284,10 @@ referência e metadados do arquivo (`chave_do_arquivo`, `arquivo_nome_original`,
 `sha256`, `numero_de_paginas`, `rotacao`), caixas da página em pontos (`media_box`, `crop_box`, `trim_box`,
 `bleed_box`), dimensões em mm, área do QR em pontos (`qr_x_pt`, `qr_y_pt`, `qr_largura_pt`, `qr_altura_pt`),
 `qr_zona_de_silencio_modulos`, `qr_configurado_em`, `qr_testado_em`, `bloqueado_em`, `criado_em`, `atualizado_em`.
+**`contatos`** — quem ativou o cartão pela página pública: `cartao_id`, `cartao_codigo`, `lote_identificador`,
+`tipo`, `loja`, `ramo`, `nome`, `papel`, `decisor`, `whatsapp` (`+55…`), `aceitou_ofertas`, `versao_do_texto`,
+`registrado_em`, `situacao`, `observacao`. Em `lotes`, a coluna `ativacao_pelo_cliente`.
+**`limites_de_tentativas`** — contadores do limite de tentativas da página pública (`chave`, `contagem`, janela).
 **`artes_de_impressao`** — arte enviada pelo painel, uma por modelo: `tipo`, `pdf`, `nome_do_arquivo`,
 `tamanho_bytes`, posição do QR (`qr_x_mm`, `qr_y_mm`, `qr_tamanho_mm`) e `cor_do_codigo`.
 **`administradores`** — `email`, `senha_hash`, `tentativas_falhas`, `bloqueado_ate`.
@@ -280,7 +301,11 @@ criptográfico: cerca de 887 milhões de combinações, sem sequência previsív
 
 | Rota | Acesso | Função |
 |---|---|---|
-| `GET /c/[codigo]` | Público | Redireciona (302) para o destino atual |
+| `GET /c/[codigo]` | Público | Redireciona (302) para o destino atual; em cartão não configurado de lote com "Ativação pelo cliente", abre a ativação |
+| `POST /c/[codigo]` | Público | Conferência de um passo e envio final da ativação pelo cliente |
+| `/privacidade` | Público | "Como usamos seus dados" (rascunho) |
+| `/admin/contatos`, `/admin/contatos/[id]` | Admin | Contatos de quem ativou: lista, acompanhamento e exclusão |
+| `/admin/contatos/exportar` | Admin | Contatos em CSV |
 | `/login` | Público | Entrada do painel |
 | `/admin` | Admin | Indicadores e atalhos |
 | `/admin/cartoes` | Admin | Listagem, busca e filtros |
@@ -307,6 +332,7 @@ criptográfico: cerca de 887 milhões de combinações, sem sequência previsív
 |---|---|
 | Cartão ativo com destino válido | `302` para o destino, `Cache-Control: no-store` |
 | Cartão não configurado | `200` com página "Cartão ainda não configurado" |
+| Cartão não configurado, em lote com "Ativação pelo cliente" | `200` com o passo a passo de ativação |
 | Cartão inativo | `410` com página "Cartão indisponível" |
 | Código inexistente ou inválido | `404` |
 | Destino salvo inválido | `500`, sem redirecionar (e registra log de erro) |
@@ -426,7 +452,7 @@ o sistema não finge que sabe. A contagem é feita depois da resposta, para não
 
 ## Testes
 
-`pnpm test` roda 372 testes contra um PostgreSQL em memória (PGlite) com as migrações reais:
+`pnpm test` roda 438 testes contra um PostgreSQL em memória (PGlite) com as migrações reais:
 
 - geração e validação de código (formato, alfabeto, unicidade, rejeição de inválidos);
 - URL canônica e configuração de domínio;
@@ -443,6 +469,9 @@ o sistema não finge que sabe. A contagem é feita depois da resposta, para não
   pacote com arte pesada;
 - exclusão de lote: apaga lote e cartões, exige confirmação e não afeta outros lotes;
 - cenário final: destino muda, cartão físico não;
+- ativação pelo cliente (66 testes): WhatsApp, links do Instagram e do Google, contato obrigatório, abrir a
+  página não altera nada, cartão ativado não muda pela página pública, duas ativações simultâneas, limite de
+  tentativas, campo-isca, CSV protegido contra fórmulas e ativação pelo painel inalterada;
 - templates de impressão (148 testes, com a biblioteca de PDF de verdade e arquivos reais em
   `tests/fixtures/templates`): validação do envio, coordenadas, renderização (caixas e bytes da arte preservados,
   QR lido da página renderizada com pdf.js + canvas e decodificado com jsQR), ciclo de vida, produção, rotas e
@@ -460,6 +489,9 @@ o sistema não finge que sabe. A contagem é feita depois da resposta, para não
 - **Administradores:** todos têm o mesmo nível de acesso; criação e troca de senha são feitas por `pnpm admin:criar`.
 - **Sessão:** não há encerramento remoto de uma sessão específica (trocar `AUTH_SECRET` encerra todas).
 - **Histórico:** não há histórico de destinos anteriores de um cartão (apenas logs do servidor).
+- **Ativação pelo cliente:** só em lotes de Instagram ou Google; a troca do link depois de ativado é só pelo
+  painel; não há envio de e-mail (o aviso de novo contato é o contador no menu); o prazo de guarda dos contatos
+  não é aplicado automaticamente; o texto de privacidade é um rascunho a revisar.
 - **Exclusão:** um lote pode ser apagado inteiro (com todos os seus cartões); um cartão isolado não pode ser
   excluído pelo painel — use **Desativar**. Não há lixeira: a exclusão é definitiva.
 - **Impressão:** os PDFs não são PDF/X certificados: o sistema preserva o PDF-base e adiciona o QR, e a
