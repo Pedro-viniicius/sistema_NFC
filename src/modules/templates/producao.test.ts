@@ -24,6 +24,7 @@ import { lerQrDoSvg } from "../../../tests/ler-qr";
 import { contarPaginas, lerQrDaPagina } from "../../../tests/renderizar-pdf";
 import { AREA_DO_QR_NAS_FIXTURES, criarTemplatePronto } from "../../../tests/templates-de-teste";
 import {
+  LIMITE_DOS_PDFS_INDIVIDUAIS_BYTES,
   buscarTemplateDoLote,
   carregarArquivoDoLote,
   gerarCsvDeControleComTemplate,
@@ -34,6 +35,7 @@ import {
   individuaisCabemNoPacote,
   planejarPacoteComTemplate,
 } from "./producao";
+import { juntarFluxo } from "./zip-em-fluxo";
 import { buscarTemplate, definirTemplatePadrao, inativarTemplate, listarTemplatesParaNovosLotes } from "./servico";
 
 let db: Banco;
@@ -175,7 +177,7 @@ describe("pacote do lote", () => {
 
   it("ZIP: PDF do lote, controle, LEIA-ME, QR em SVG e os PDFs individuais", async () => {
     const { pacote, arquivo } = await pacoteDoLote(loteGoogle);
-    const zip = await JSZip.loadAsync(await gerarZipComTemplate(pacote, arquivo));
+    const zip = await JSZip.loadAsync(await juntarFluxo(await gerarZipComTemplate(pacote, arquivo)));
     const nomes = Object.values(zip.files)
       .filter((entrada) => !entrada.dir)
       .map((entrada) => entrada.name)
@@ -212,26 +214,60 @@ describe("pacote do lote", () => {
     expect(await zip.file(`${pasta}/controle.csv`)!.async("string")).toBe(gerarCsvDeControleComTemplate(pacote));
   });
 
-  it("com arte pesada, o ZIP sai sem os individuais e o LEIA-ME avisa", async () => {
-    expect(individuaisCabemNoPacote(100, 300 * 1024)).toBe(true);
-    expect(individuaisCabemNoPacote(100, 2 * 1024 * 1024)).toBe(false);
+  it("arte pesada: os individuais continuam no pacote (era o caso do lote de Instagram com 25 cartões)", async () => {
+    // 25 cartões com uma arte de 2,1 MB somam 52 MB de individuais: cabem com muita folga.
+    expect(individuaisCabemNoPacote(25, 2_082_724)).toBe(true);
+    expect(individuaisCabemNoPacote(25, 1_625_721)).toBe(true);
+    expect(individuaisCabemNoPacote(100, 2 * 1024 * 1024)).toBe(true);
     expect(individuaisCabemNoPacote(1000, 8 * 1024)).toBe(true);
 
     const pesado = await criarTemplatePronto(db, armazenamento, {
-      nome: "Google — Arte pesada",
-      bytes: criarPdfDeTemplate({ pesoExtraBytes: 9 * 1024 * 1024 }).bytes,
+      nome: "Instagram — Arte pesada",
+      tipo: "INSTAGRAM",
+      bytes: criarPdfDeTemplate({ tema: "instagram", pesoExtraBytes: 3 * 1024 * 1024 }).bytes,
     });
-    const { lote } = await criarLote(db, { quantidade: 6, tipo: "GOOGLE", descricao: null, templateId: pesado.id });
+    const { lote } = await criarLote(db, { quantidade: 6, tipo: "INSTAGRAM", descricao: null, templateId: pesado.id });
     const { pacote, arquivo } = await pacoteDoLote(lote);
 
-    const bytesDoZip = await gerarZipComTemplate(pacote, arquivo);
+    const bytesDoZip = await juntarFluxo(await gerarZipComTemplate(pacote, arquivo));
+    const zip = await JSZip.loadAsync(bytesDoZip);
+    const individuais = Object.keys(zip.files).filter((nome) => nome.includes("/individuais/"));
+    expect(individuais).toHaveLength(6);
+    expect(await zip.file(`${pacote.nome}/LEIA-ME.txt`)!.async("string")).toContain("individuais/   um PDF por cartão");
+
+    // Cada individual é um PDF completo, com a arte e o QR do seu cartão.
+    for (const item of [pacote.itens[0], pacote.itens[5]]) {
+      const pdf = await zip.file(`${pacote.nome}/individuais/${item.arquivoPdf}`)!.async("uint8array");
+      expect(pdf.length).toBeGreaterThan(arquivo.length);
+      const [desenho] = await lerDesenhosDoQr(pdf);
+      expect(desenho.conteudo).toBe(item.url);
+    }
+    // O pacote pesa o PDF do lote mais um PDF por cartão.
+    expect(bytesDoZip.length).toBeGreaterThan(7 * arquivo.length);
+  });
+
+  it("lote grande demais para os individuais: o ZIP sai sem eles e o LEIA-ME avisa", async () => {
+    expect(LIMITE_DOS_PDFS_INDIVIDUAIS_BYTES).toBe(500 * 1024 * 1024);
+    expect(individuaisCabemNoPacote(300, 2 * 1024 * 1024)).toBe(false);
+    expect(individuaisCabemNoPacote(1000, 2 * 1024 * 1024)).toBe(false);
+    // 60 cartões com uma arte de 9 MB seriam 540 MB de individuais.
+    expect(individuaisCabemNoPacote(60, 9 * 1024 * 1024)).toBe(false);
+
+    const pesado = await criarTemplatePronto(db, armazenamento, {
+      nome: "Google — Arte muito pesada",
+      bytes: criarPdfDeTemplate({ pesoExtraBytes: 9 * 1024 * 1024 }).bytes,
+    });
+    const { lote } = await criarLote(db, { quantidade: 60, tipo: "GOOGLE", descricao: null, templateId: pesado.id });
+    const { pacote, arquivo } = await pacoteDoLote(lote);
+
+    const bytesDoZip = await juntarFluxo(await gerarZipComTemplate(pacote, arquivo));
     const zip = await JSZip.loadAsync(bytesDoZip);
     const nomes = Object.keys(zip.files);
     expect(nomes.some((nome) => nome.includes("/individuais/"))).toBe(false);
-    expect(nomes.filter((nome) => nome.endsWith(".svg"))).toHaveLength(6);
+    expect(nomes.filter((nome) => nome.endsWith(".svg"))).toHaveLength(60);
     expect(await zip.file(`${pacote.nome}/LEIA-ME.txt`)!.async("string")).toContain("sem PDFs individuais");
-    // A arte entra uma vez só no pacote.
-    expect(bytesDoZip.length).toBeLessThan(arquivo.length + 200 * 1024);
+    // A arte entra uma vez só no pacote (no PDF do lote).
+    expect(bytesDoZip.length).toBeLessThan(arquivo.length + 400 * 1024);
     expect(gerarLeiaMeComTemplate(pacote, false)).not.toContain("individuais/   um PDF por cartão");
   });
 

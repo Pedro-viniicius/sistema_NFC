@@ -69,9 +69,14 @@ aviso "A configuração precisa da área do QR é recomendada em uma tela maior.
 | Controle | `lote-google-2026-001-controle.csv` | `numero,codigo,tipo,template,url_permanente,url_nfc,url_qr,arquivo_pdf,arquivo_qr` |
 | Pacote | `lote-google-2026-001.zip` | PDF do lote, `controle.csv`, `LEIA-ME.txt`, `qr/*.svg` e `individuais/*.pdf` |
 
-`url_nfc`, `url_qr` e `url_permanente` são sempre iguais. Os PDFs individuais só entram no ZIP enquanto a soma
-deles fica abaixo de 40 MB (cada um carrega a arte inteira); acima disso o pacote sai sem a pasta `individuais/`
-e o `LEIA-ME.txt` avisa. O PDF do lote tem as mesmas páginas.
+`url_nfc`, `url_qr` e `url_permanente` são sempre iguais.
+
+**PDFs individuais no pacote.** Cada PDF individual carrega a arte inteira: 25 cartões com uma arte de 2 MB são
+52 MB; 100 cartões, 200 MB. O pacote é gerado em fluxo (um arquivo de cada vez, sem segurar tudo na memória) e
+inclui os individuais enquanto a soma deles fica abaixo de **500 MB**. Acima disso o pacote sai sem a pasta
+`individuais/`, o `LEIA-ME.txt` avisa e a página do lote mostra isso antes do download; o PDF do lote tem as
+mesmas páginas, e o PDF de um cartão específico pode ser baixado na página dele. Pacotes grandes pedem uma
+conexão razoável: a Vercel mantém o download aberto por até 5 minutos.
 
 ## Convenção de coordenadas
 
@@ -169,8 +174,8 @@ A **fonte de verdade são pontos do PDF** no espaço do usuário da página. Só
 |---|---|
 | Tamanho do PDF do template | 25 MB (`MAX_TEMPLATE_BYTES`) |
 | Cartões por PDF e por lote | 1.000 (`MAXIMO_DE_CARTOES_POR_PDF`) |
-| Soma dos PDFs individuais no ZIP | 40 MB |
-| Duração máxima das rotas de PDF | 60 s (`maxDuration`) |
+| Soma dos PDFs individuais no ZIP | 500 MB (`LIMITE_DOS_PDFS_INDIVIDUAIS_BYTES`) |
+| Duração máxima das rotas de PDF | 60 s; 300 s no download do pacote (`maxDuration`) |
 
 Medições (`pnpm templates:medir`, Node 22, máquina de desenvolvimento):
 
@@ -183,7 +188,9 @@ Medições (`pnpm templates:medir`, Node 22, máquina de desenvolvimento):
 | 25 MB | 1.000 | 0,65 s | 26,01 MB | 353 MB |
 
 Cada página acrescenta cerca de **1 KB** ao arquivo: a arte entra uma única vez e é compartilhada por todas as
-páginas. Na Vercel, respostas em fluxo de 6, 12 e 26 MB foram entregues inteiras (26 MB em 3,4 s).
+páginas. Na Vercel, respostas em fluxo de 6, 12 e 26 MB foram entregues inteiras (26 MB em 3,4 s), e pacotes
+ZIP de 54, 210 e 500 MB também (500 MB em 72 s, a cerca de 6 MB/s). Com a arte de 2 MB do Instagram, o pacote
+de 100 cartões (201 MB) é gerado em 0,5 s, sem aumento de memória.
 
 Fora do escopo desta versão:
 

@@ -2,7 +2,6 @@
 //
 // O lote fica preso ao template com que foi criado (lotes.template_id + SHA-256 do arquivo).
 // Todas as funções recebem só CÓDIGOS de cartão: a URL do QR vem sempre de getCardPublicUrl().
-import JSZip from "jszip";
 import type { Lote, TemplateDeImpressao } from "@/db/schema";
 import type { Banco } from "@/db/tipos";
 import { ErroDeDominio } from "@/lib/erros";
@@ -24,13 +23,16 @@ import { medidasDoQr } from "./geometria-do-qr";
 import { MAXIMO_DE_CARTOES_POR_PDF, prepararTemplate, renderTemplatePdf } from "./renderizacao";
 import { SLUG_DO_PRODUTO, buscarTemplate, carregarArquivoDoTemplate, configuracaoDoQr } from "./servico";
 import type { ConfiguracaoDoQr } from "./tipos";
+import { zipEmFluxo, type EntradaDoZip } from "./zip-em-fluxo";
 
 /**
- * Os PDFs individuais carregam a arte inteira, cada um. Eles só entram no ZIP enquanto a soma
- * deles ficar abaixo deste teto; acima disso o pacote sai sem a pasta individuais/ (o PDF do lote
- * tem as mesmas páginas) e o LEIA-ME avisa.
+ * Os PDFs individuais carregam a arte inteira, cada um: 100 cartões com uma arte de 2 MB são 200 MB.
+ * Eles entram no ZIP enquanto a soma ficar abaixo deste teto, que existe por causa do tempo de
+ * download (a função da Vercel fica aberta até o fim dele), não da memória: o ZIP sai em fluxo.
+ * Acima do teto, o pacote sai sem a pasta individuais/ (o PDF do lote tem as mesmas páginas), o
+ * LEIA-ME avisa e a página do lote mostra isso antes do download.
  */
-export const LIMITE_DOS_PDFS_INDIVIDUAIS_BYTES = 40 * 1024 * 1024;
+export const LIMITE_DOS_PDFS_INDIVIDUAIS_BYTES = 500 * 1024 * 1024;
 
 function falha(mensagem: string): ErroDeDominio {
   return new ErroDeDominio("IMPRESSAO_INVALIDA", mensagem);
@@ -196,31 +198,45 @@ export function individuaisCabemNoPacote(quantidade: number, tamanhoDoTemplateBy
   return quantidade * (tamanhoDoTemplateBytes + 2048) <= LIMITE_DOS_PDFS_INDIVIDUAIS_BYTES;
 }
 
-/** ZIP para a gráfica, gerado em memória: PDF do lote, controle.csv, LEIA-ME, QR em SVG e, se couberem, os individuais. */
-export async function gerarZipComTemplate(pacote: PacoteComTemplate, arquivoDoTemplate: Uint8Array): Promise<Uint8Array> {
-  const zip = new JSZip();
-  const pasta = zip.folder(pacote.nome);
-  if (!pasta) throw new Error("Não foi possível montar a estrutura do arquivo ZIP.");
-
+/**
+ * ZIP para a gráfica: PDF do lote, controle.csv, LEIA-ME, os PDFs individuais (se couberem no
+ * limite) e os QR Codes em SVG.
+ *
+ * O ZIP sai em FLUXO: cada PDF individual é gerado, enviado e descartado, então a memória usada não
+ * cresce com o tamanho do lote. Tudo o que pode dar errado (abrir o template, conferir a área do QR,
+ * gerar o PDF do lote) acontece ANTES de o fluxo ser devolvido — depois que o download começa, só
+ * resta repetir a mesma operação para cada cartão.
+ */
+export async function gerarZipComTemplate(
+  pacote: PacoteComTemplate,
+  arquivoDoTemplate: Uint8Array,
+): Promise<ReadableStream<Uint8Array>> {
   const comIndividuais = individuaisCabemNoPacote(pacote.itens.length, arquivoDoTemplate.length);
-  // PDFs já são comprimidos por dentro: recomprimir uma arte pesada só gastaria tempo.
-  const opcoesDoPdf = { compression: arquivoDoTemplate.length > 1024 * 1024 ? "STORE" : "DEFLATE" } as const;
-
-  // O template é aberto uma única vez para o PDF do lote e para todos os individuais.
-  const template = await prepararTemplate(arquivoDoTemplate, pacote.qr);
+  // PDFs com imagens já são comprimidos por dentro: recomprimir uma arte pesada só gastaria tempo.
+  const comprimirPdf = arquivoDoTemplate.length <= 1024 * 1024;
   const urlDoCartao = (item: ItemDeProducao) => getCardPublicUrl(item.codigo);
 
-  pasta.file(`${pacote.nome}.pdf`, await template.renderizar(pacote.itens.map(urlDoCartao)), opcoesDoPdf);
-  pasta.file(NOME_DO_CSV_DE_CONTROLE, gerarCsvDeControleComTemplate(pacote));
-  pasta.file(NOME_DO_LEIA_ME, gerarLeiaMeComTemplate(pacote, comIndividuais));
+  // O template é aberto uma única vez, para o PDF do lote e para todos os individuais.
+  const template = await prepararTemplate(arquivoDoTemplate, pacote.qr);
+  const pdfDoLote = await template.renderizar(pacote.itens.map(urlDoCartao));
 
-  if (comIndividuais) {
+  async function* arquivos(): AsyncGenerator<EntradaDoZip> {
+    const pasta = pacote.nome;
+    yield { nome: `${pasta}/${pasta}.pdf`, dados: pdfDoLote, comprimir: comprimirPdf };
+    yield { nome: `${pasta}/${NOME_DO_CSV_DE_CONTROLE}`, dados: gerarCsvDeControleComTemplate(pacote), comprimir: true };
+    yield { nome: `${pasta}/${NOME_DO_LEIA_ME}`, dados: gerarLeiaMeComTemplate(pacote, comIndividuais), comprimir: true };
+    if (comIndividuais) {
+      for (const item of pacote.itens) {
+        yield {
+          nome: `${pasta}/individuais/${item.arquivoPdf}`,
+          dados: await template.renderizar([urlDoCartao(item)]),
+          comprimir: comprimirPdf,
+        };
+      }
+    }
     for (const item of pacote.itens) {
-      pasta.file(`individuais/${item.arquivoPdf}`, await template.renderizar([urlDoCartao(item)]), opcoesDoPdf);
+      yield { nome: `${pasta}/qr/${item.arquivoQr}`, dados: await gerarQrSvg(item.codigo), comprimir: true };
     }
   }
-  for (const item of pacote.itens) {
-    pasta.file(`qr/${item.arquivoQr}`, await gerarQrSvg(item.codigo));
-  }
-  return zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+  return zipEmFluxo(arquivos());
 }

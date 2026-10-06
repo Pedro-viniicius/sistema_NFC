@@ -11,8 +11,8 @@ import { buscarLotePorIdentificador } from "@/modules/batches/servico";
 import { listarCartoesDoLote } from "@/modules/cards/repositorio";
 import { getCardPublicUrl } from "@/modules/cards/url-publica";
 import { contarContatosDoLote } from "@/modules/contacts/servico";
-import { formatarDimensoesMm } from "@/modules/templates/formato";
-import { buscarTemplateDoLote } from "@/modules/templates/producao";
+import { formatarDimensoesMm, tamanhoLegivel } from "@/modules/templates/formato";
+import { buscarTemplateDoLote, individuaisCabemNoPacote } from "@/modules/templates/producao";
 import { ApagarLote } from "./apagar-lote";
 import { AtivacaoPeloCliente } from "./ativacao-pelo-cliente";
 
@@ -83,6 +83,23 @@ export default async function PaginaDoLote({ params }: PageProps<"/admin/lotes/[
             <p className="mt-1 text-sm text-slate-500">
               Este lote é sempre gerado com este template, mesmo que outro vire o padrão do produto. Cada página do PDF
               é a arte original com o QR Code de um cartão.
+            </p>
+            {/* O que vem no pacote, dito antes do download (cada PDF individual carrega a arte inteira). */}
+            <p className="mt-3 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
+              {individuaisCabemNoPacote(cartoes.length, template.tamanhoBytes) ? (
+                <>
+                  O pacote traz o PDF do lote, o <code className="font-mono">controle.csv</code>, os QR Codes e a pasta{" "}
+                  <code className="font-mono">individuais/</code> com um PDF por cartão (cerca de{" "}
+                  {tamanhoLegivel((cartoes.length + 1) * template.tamanhoBytes)} no total).
+                </>
+              ) : (
+                <>
+                  Este lote é grande demais para o pacote incluir um PDF por cartão (seriam cerca de{" "}
+                  {tamanhoLegivel(cartoes.length * template.tamanhoBytes)}). O pacote traz o PDF do lote, com uma página
+                  por cartão, o <code className="font-mono">controle.csv</code> e os QR Codes. O PDF de um cartão
+                  específico pode ser baixado na página dele.
+                </>
+              )}
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <a href={`${baixar}?arquivo=zip`} className={classesDoBotao("primario")}>

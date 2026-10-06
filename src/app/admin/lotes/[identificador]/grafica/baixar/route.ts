@@ -34,9 +34,10 @@ const ARQUIVOS = ["pdf", "csv", "zip"] as const;
 type Arquivo = (typeof ARQUIVOS)[number];
 
 export const runtime = "nodejs";
-// Medido: 1.000 cartões com um template de 25 MB levam cerca de 1 s (PDF) e poucos segundos (ZIP).
-// O teto cobre também o tempo de ler o template no armazenamento.
-export const maxDuration = 60;
+// Gerar é rápido (1.000 cartões com um template de 25 MB em cerca de 1 s). O que demora é o
+// download do pacote com os PDFs individuais, que pode ter centenas de MB: a função fica aberta
+// enquanto o navegador baixa.
+export const maxDuration = 300;
 
 function arquivoPedido(valor: string | null): Arquivo {
   return ARQUIVOS.find((arquivo) => arquivo === valor) ?? "zip";

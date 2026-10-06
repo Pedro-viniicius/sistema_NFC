@@ -35,7 +35,7 @@ function emFluxo(bytes: Uint8Array): ReadableStream<Uint8Array> {
 }
 
 export function respostaDeDownload(
-  corpo: string | Uint8Array | ArrayBuffer,
+  corpo: string | Uint8Array | ArrayBuffer | ReadableStream<Uint8Array>,
   tipo: keyof typeof TIPOS_DE_ARQUIVO,
   nomeDoArquivo: string,
   disposicao: "attachment" | "inline" = "attachment",
@@ -46,6 +46,8 @@ export function respostaDeDownload(
     "Cache-Control": SEM_CACHE,
   });
   if (typeof corpo === "string") return new Response(corpo, { headers: cabecalhos });
+  // Arquivo que já vem em fluxo (o tamanho final só é conhecido no fim).
+  if (corpo instanceof ReadableStream) return new Response(corpo, { headers: cabecalhos });
 
   const bytes = corpo instanceof Uint8Array ? corpo : new Uint8Array(corpo);
   cabecalhos.set("Content-Length", String(bytes.length));
