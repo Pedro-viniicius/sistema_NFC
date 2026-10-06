@@ -6,6 +6,7 @@ import type { Banco } from "@/db/tipos";
 import { ErroDeDominio } from "@/lib/erros";
 import { criarCartoes, TAMANHO_MAXIMO_DESCRICAO } from "@/modules/cards/servico";
 import { TIPOS_DESTINO } from "@/modules/cards/tipos";
+import { liberarTemplateSemLotes, reservarTemplateParaNovoLote } from "@/modules/templates/servico";
 
 export const QUANTIDADE_MAXIMA_POR_LOTE = 1000;
 const MAX_TENTATIVAS_DE_NUMERACAO = 3;
@@ -24,6 +25,11 @@ export const esquemaDeNovoLote = z.object({
     .max(TAMANHO_MAXIMO_DESCRICAO, `A descrição deve ter no máximo ${TAMANHO_MAXIMO_DESCRICAO} caracteres.`)
     .transform((texto) => (texto.length > 0 ? texto : null))
     .nullable(),
+  /**
+   * Template de impressão do lote. Nulo/ausente = sem template: o lote usa o modelo do sistema
+   * (caminho anterior aos templates). Precisa estar PRONTO e ser do mesmo produto do lote.
+   */
+  templateId: z.uuid("Template de impressão inválido.").nullable().optional(),
 });
 
 export type NovoLote = z.infer<typeof esquemaDeNovoLote>;
@@ -77,6 +83,11 @@ export async function criarLote(
           .where(eq(lotes.ano, ano));
         const sequencia = (ultima ?? 0) + 1;
 
+        // O template é conferido e bloqueado na mesma transação que cria o lote.
+        const template = dados.templateId
+          ? await reservarTemplateParaNovoLote(tx, dados.templateId, dados.tipo)
+          : null;
+
         const [lote] = await tx
           .insert(lotes)
           .values({
@@ -86,6 +97,8 @@ export async function criarLote(
             quantidade: dados.quantidade,
             tipo: dados.tipo,
             descricao: dados.descricao,
+            templateId: template?.id ?? null,
+            templateSha256: template?.sha256 ?? null,
           })
           .returning();
 
@@ -147,6 +160,7 @@ export async function excluirLote(
 
     const excluidos = await tx.delete(cartoes).where(eq(cartoes.loteId, lote.id)).returning({ id: cartoes.id });
     await tx.delete(lotes).where(eq(lotes.id, lote.id));
+    if (lote.templateId) await liberarTemplateSemLotes(tx, lote.templateId);
     return { identificador: lote.identificador, cartoesExcluidos: excluidos.length };
   });
 }

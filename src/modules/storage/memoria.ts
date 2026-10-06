@@ -9,11 +9,13 @@ import {
 
 export class ArmazenamentoEmMemoria implements ArmazenamentoDeArquivos {
   private readonly arquivos = new Map<string, Uint8Array>();
+  private readonly tipos = new Map<string, string>();
 
-  async salvar(chave: string, conteudo: Uint8Array): Promise<void> {
+  async salvar(chave: string, conteudo: Uint8Array, tipoDeConteudo: string): Promise<void> {
     exigirChaveValida(chave);
     if (this.arquivos.has(chave)) throw new ErroDeArmazenamento("Já existe um arquivo com esta chave.");
     this.arquivos.set(chave, Uint8Array.from(conteudo));
+    this.tipos.set(chave, tipoDeConteudo);
   }
 
   async ler(chave: string, opcoes: OpcoesDeLeitura = {}): Promise<Uint8Array | null> {
@@ -27,6 +29,12 @@ export class ArmazenamentoEmMemoria implements ArmazenamentoDeArquivos {
 
   async excluir(chave: string): Promise<void> {
     this.arquivos.delete(exigirChaveValida(chave));
+    this.tipos.delete(chave);
+  }
+
+  /** Tipo de conteúdo informado na gravação. */
+  tipoDeConteudo(chave: string): string | undefined {
+    return this.tipos.get(chave);
   }
 
   async existe(chave: string): Promise<boolean> {
