@@ -7,3 +7,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+# Convenções deste projeto
+
+- **Idioma:** toda comunicação, documentação, texto de interface, mensagens de validação e mensagens de commit
+  em português do Brasil (pt-BR). Identificadores de código podem ser em inglês quando fizer sentido.
+- **Invariante central:** QR Code e NFC contêm sempre a URL permanente do cartão (`getCardPublicUrl`), nunca o destino.
+  Não monte URLs de cartão manualmente e não crie caminhos que alterem `cartoes.codigo`.
+- **Regras de negócio** ficam em `src/modules` (sem depender do Next.js); `src/app` só orquestra.
+- **Antes de cada commit:** `pnpm lint && pnpm typecheck && pnpm test`.
+- **Banco:** mudanças de estrutura só por migração (`pnpm db:generate` + `pnpm db:migrate`).

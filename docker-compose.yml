@@ -10,6 +10,11 @@ services:
       - "54329:5432"
     volumes:
       - nfc_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nfc -d nfc"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
 
 volumes:
   nfc_pgdata:
