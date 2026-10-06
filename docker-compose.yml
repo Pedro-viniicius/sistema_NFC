@@ -1,0 +1,15 @@
+# Banco PostgreSQL apenas para desenvolvimento local.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: nfc
+      POSTGRES_PASSWORD: nfc
+      POSTGRES_DB: nfc
+    ports:
+      - "54329:5432"
+    volumes:
+      - nfc_pgdata:/var/lib/postgresql/data
+
+volumes:
+  nfc_pgdata:
