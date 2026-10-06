@@ -52,6 +52,7 @@ pnpm dev                          # http://localhost:3000/admin
 | `pnpm db:migrate` | Aplica as migrações pendentes no banco de `DATABASE_URL` |
 | `pnpm db:up` | Sobe o PostgreSQL local via Docker |
 | `pnpm admin:criar <email>` | Cria um administrador ou redefine a senha de um existente |
+| `pnpm impressao:modelos` | Recria as artes-base de impressão em `templates/` (não rode depois de trocar pela arte definitiva) |
 
 Nunca altere a estrutura do banco de produção manualmente: mude o schema, rode `pnpm db:generate`,
 revise o SQL em `drizzle/` e aplique com `pnpm db:migrate`.
@@ -114,6 +115,33 @@ lote-2026-001/
 Para um cartão avulso: página do cartão → **Baixar QR Code (SVG)** (`qr-K8M4T2.svg`) ou PNG.
 Os QR Codes são pretos sobre branco, sem logotipo, com zona de silêncio de 4 módulos e correção de erro M.
 
+### Gerar os arquivos de produção para a gráfica
+Na página do lote, **Gerar arquivos para gráfica**. A tela mostra o modelo (Google ou Instagram), a quantidade
+de cartões, o status do lote e uma prévia esquemática, e oferece:
+
+- **Baixar ZIP completo** — tudo o que a gráfica precisa;
+- **Baixar PDF do lote** — uma página por cartão;
+- **Baixar CSV** — o controle de produção.
+
+```
+lote-2026-001-google/
+  lote-2026-001-google.pdf      uma página por cartão, na ordem do controle
+  controle.csv                  numero,codigo,tipo,url_permanente,url_nfc,url_qr,arquivo_pdf,arquivo_qr
+  LEIA-ME.txt                   medidas, observações de impressão e instruções de gravação do NFC
+  individuais/google-K8M4T2.pdf arte final de cada cartão
+  qr/K8M4T2.svg                 QR Code avulso de cada cartão
+```
+
+Para um cartão avulso: página do cartão → **Baixar arte para impressão** (`google-K8M4T2.pdf`).
+
+**Como enviar à gráfica:** mande o ZIP inteiro. Peça impressão em 100% (sem "ajustar à página"), corte em
+86 × 54 mm e avise que **cada página é um cartão diferente**. Quem grava os chips usa o `controle.csv`:
+localiza a linha pelo **código impresso abaixo do QR** e grava a URL da coluna `url_nfc`, que é sempre igual à `url_qr`.
+
+Cada pacote tem no máximo **100 cartões**; lotes maiores aparecem divididos em partes (`...-parte-01`, `...-parte-02`),
+com numeração contínua. O `controle.csv` usa vírgula como separador: no Excel em português, abra por
+*Dados → De Texto/CSV*.
+
 ### Obter a URL para gravar no NFC
 Página do cartão → bloco **URL permanente** → **Copiar URL permanente**. É a mesma URL da coluna `url` do `lote.csv`.
 Grave exatamente essa URL no chip (registro NDEF do tipo URL), com um app como o *NFC Tools*.
@@ -150,10 +178,12 @@ src/
     redirects/                 decisão de redirecionamento e respostas HTTP
     qr/                        geração de QR Code (SVG/PNG)
     batches/                   lotes e exportação CSV/ZIP
+    printing/                  arte de impressão: modelos, PDF, controle e pacote de produção
     auth/                      senha (scrypt), token de sessão, login com bloqueio
   db/                          schema Drizzle e cliente PostgreSQL
   proxy.ts                     bloqueia /admin sem sessão (o "middleware" do Next 16)
 drizzle/                       migrações SQL
+templates/                     artes fixas de impressão (PDF) e contornos das letras do código
 tests/                         utilitários de teste e cenário final
 ```
 
@@ -193,7 +223,10 @@ criptográfico: cerca de 887 milhões de combinações, sem sequência previsív
 | `/admin/cartoes/[codigo]/qr?formato=svg\|png` | Admin | QR Code |
 | `/admin/ativar` | Admin | Ativação rápida |
 | `/admin/lotes`, `/admin/lotes/novo`, `/admin/lotes/[identificador]` | Admin | Lotes |
-| `/admin/lotes/[identificador]/exportar?formato=zip\|csv` | Admin | Exportação para a gráfica |
+| `/admin/lotes/[identificador]/exportar?formato=zip\|csv` | Admin | QR Codes do lote (SVG) e `lote.csv` |
+| `/admin/cartoes/[codigo]/impressao?modelo=google\|instagram` | Admin | Arte final do cartão (PDF) |
+| `/admin/lotes/[identificador]/grafica` | Admin | Tela de arquivos para a gráfica |
+| `/admin/lotes/[identificador]/grafica/baixar?arquivo=pdf\|csv\|zip&modelo=&parte=` | Admin | PDF do lote, controle e ZIP |
 
 ### Comportamento de `/c/[codigo]`
 
@@ -208,6 +241,81 @@ criptográfico: cerca de 887 milhões de combinações, sem sequência previsív
 
 O redirecionamento é `302` de propósito: um `301/308` ficaria guardado no celular do visitante
 e o cartão continuaria indo para o destino antigo.
+
+## Arquivos de impressão
+
+```
+ARTE FIXA (templates/google.pdf)  +  QR DO CARTÃO  =  ARTE FINAL (google-K8M4T2.pdf)
+```
+
+### Arte fixa e dados variáveis
+- **Arte fixa:** um PDF por modelo em `templates/` (fundo, textos, identidade, símbolo de aproximação).
+  A aplicação nunca desenha a arte: só carrega esse PDF, sem redimensionar.
+- **Dados variáveis:** o QR Code e o código do cartão, aplicados por cima.
+- **Configuração central:** `src/modules/printing/modelos.ts` guarda, por modelo, o tamanho final, a sangria e a
+  posição do QR e do código, em milímetros a partir do canto superior esquerdo do corte.
+  Nenhuma rota conhece coordenadas. A conversão mm → pontos (72 pt por polegada, 25,4 mm por polegada) fica em `unidades.ts`.
+
+| Medida | Valor |
+|---|---|
+| Tamanho final (corte) | 86 × 54 mm |
+| Sangria | 3 mm em cada lado |
+| Arte completa | 92 × 60 mm |
+| Área do QR (com zona de silêncio) | 30 × 30 mm, a 50 mm da esquerda e 6 mm do topo do corte |
+| Código do cartão | 6,5 pt, centralizado abaixo do QR |
+
+As páginas trazem `TrimBox` (corte) e `BleedBox` (sangria). Não há marcas de corte: a gráfica faz a imposição.
+
+### QR Code vetorial
+O módulo `qr` gera a **matriz** do QR a partir do código do cartão; o gerador de PDF desenha os módulos escuros
+como retângulos em um único preenchimento. Sem imagem bitmap, sem arredondamento, sem rotação, sem logotipo.
+Preto puro (só o canal K) sobre uma caixa branca que cobre a zona de silêncio de 4 módulos, para o contraste
+não depender da arte. A geração é recusada se os módulos ficarem menores que 0,5 mm (por exemplo, com um domínio muito longo).
+
+O gerador recebe **apenas o código do cartão** e obtém a URL por `getCardPublicUrl`: o destino configurado
+não chega até ele. Os testes abrem o PDF gerado, reconstroem o QR a partir dos retângulos desenhados e leem o conteúdo.
+
+### Código impresso na arte (rastreabilidade)
+O código do cartão é impresso em tamanho pequeno abaixo do QR. É uma decisão de produto: a ativação rápida
+pede o código impresso, e é ele que liga o adesivo ao chip NFC e à linha do `controle.csv`, evitando gravar
+o NFC de um cartão no adesivo de outro. Para um produto que não possa exibir o código, defina `codigo: null`
+no modelo; ele continua no `controle.csv`.
+
+### Qual arte um cartão usa
+A arte segue o **tipo do lote** (que define o adesivo fabricado); cartão sem lote usa o próprio tipo.
+Em qualquer download é possível escolher o modelo com `?modelo=google|instagram`. Tipos sem arte
+("Outro link" ou sem tipo) exigem essa escolha.
+
+### Trocar a arte-base pela arte definitiva
+As artes incluídas são **artes-base neutras**, geradas por `pnpm impressao:modelos`, com texto convertido em curvas
+e sem logotipos oficiais (Google e Instagram são marcas registradas; a identidade definitiva deve vir do designer,
+seguindo as regras de cada marca). Para usar a arte final:
+
+1. exporte um PDF de **uma página** com exatamente **92 × 60 mm** (86 × 54 mm + 3 mm de sangria), de preferência
+   com textos em curvas e cores em CMYK, deixando livre a área do QR;
+2. substitua `templates/google.pdf` ou `templates/instagram.pdf`;
+3. se a posição do QR ou do código mudar, ajuste `src/modules/printing/modelos.ts`;
+4. rode `pnpm test` e confira o PDF de um cartão.
+
+Se o tamanho do arquivo não bater com o modelo, a geração falha com uma mensagem clara em vez de redimensionar.
+Envio de arte pelo painel (upload) não existe nesta versão.
+
+### Limitações de pré-impressão (PDF/X e CMYK)
+O sistema entrega PDF vetorial, com dimensões físicas corretas, sangria, caixas de corte e QR vetorial,
+usando cores CMYK de dispositivo. **Não é um PDF/X-1a nem PDF/X-4 certificado:** não há perfil ICC embutido,
+*output intent*, controle de sobreimpressão nem validação de pré-impressão, e a biblioteca usada (pdf-lib) não faz isso.
+Se a gráfica exigir PDF/X, um perfil de cor específico ou marcas de corte, é preciso uma etapa de pré-impressão
+(por exemplo, no Acrobat ou no fluxo da própria gráfica). Em material transparente ou metalizado, o branco atrás
+do QR precisa de tinta branca, o que também é definido na pré-impressão.
+
+### Limite por pacote e Vercel
+Tudo é gerado em memória a partir do banco e devolvido como download; nada é gravado em disco e não há
+dependência de binários do sistema. As artes de `templates/` são empacotadas com as funções do painel
+(`outputFileTracingIncludes` em `next.config.ts`).
+
+Medição em Node 22: 100 cartões → ZIP de 2,2 MB em 0,6 s, com cerca de 30 MB de memória; 250 cartões → 5,4 MB,
+acima do limite de 4,5 MB por resposta das funções da Vercel. Por isso o pacote tem no máximo 100 cartões.
+Uma arte definitiva muito mais pesada que a arte-base aumenta o ZIP na mesma proporção: meça antes de subir o limite.
 
 ## Segurança
 
@@ -237,7 +345,7 @@ o sistema não finge que sabe. A contagem é feita depois da resposta, para não
 
 ## Testes
 
-`pnpm test` roda 138 testes contra um PostgreSQL em memória (PGlite) com as migrações reais:
+`pnpm test` roda 200 testes contra um PostgreSQL em memória (PGlite) com as migrações reais:
 
 - geração e validação de código (formato, alfabeto, unicidade, rejeição de inválidos);
 - URL canônica e configuração de domínio;
@@ -247,6 +355,9 @@ o sistema não finge que sabe. A contagem é feita depois da resposta, para não
 - QR Code (o teste lê o QR gerado e confere o conteúdo);
 - lotes, CSV e ZIP;
 - senha, sessão, bloqueio de login e proteção do painel;
+- impressão: conversão mm → pontos, dimensões e caixas do PDF, posição e conteúdo do QR lido de dentro do PDF,
+  arte correta por modelo, PDF do lote, controle, ZIP, limite por pacote e downloads sem sessão;
+- regressão crítica de impressão: trocar o destino não altera o QR do PDF;
 - cenário final: destino muda, cartão físico não.
 
 ## Limitações e próximos passos
@@ -262,5 +373,7 @@ o sistema não finge que sabe. A contagem é feita depois da resposta, para não
 - **Sessão:** não há encerramento remoto de uma sessão específica (trocar `AUTH_SECRET` encerra todas).
 - **Histórico:** não há histórico de destinos anteriores de um cartão (apenas logs do servidor).
 - **Exclusão:** cartões e lotes não podem ser excluídos pelo painel; use **Desativar**.
+- **Impressão:** os PDFs não são PDF/X certificados e as artes incluídas são artes-base
+  (veja "Arquivos de impressão"). Não há envio de arte pelo painel nem modelo para o tipo "Outro link".
 - **Domínios por tipo:** a lista de domínios aceitos para Instagram e Google fica em `src/modules/cards/destino.ts`
   e pode precisar de atualização se essas empresas criarem novos encurtadores.

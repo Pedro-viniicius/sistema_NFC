@@ -17,3 +17,5 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - **Regras de negócio** ficam em `src/modules` (sem depender do Next.js); `src/app` só orquestra.
 - **Antes de cada commit:** `pnpm lint && pnpm typecheck && pnpm test`.
 - **Banco:** mudanças de estrutura só por migração (`pnpm db:generate` + `pnpm db:migrate`).
+- **Impressão:** a arte fixa fica em `templates/`; medidas e posição do QR ficam só em `src/modules/printing/modelos.ts`.
+  O gerador de PDF recebe apenas códigos de cartão, nunca o destino.
