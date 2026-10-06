@@ -339,14 +339,17 @@ Tudo é gerado em memória a partir do banco e devolvido como download; nada é 
 dependência de binários do sistema. As artes de `templates/` são empacotadas com as funções do painel
 (`outputFileTracingIncludes` em `next.config.ts`).
 
-Medição em Node 22 com a arte-base: 100 cartões → ZIP de 2,2 MB em 0,6 s, com cerca de 30 MB de memória;
-250 cartões → 5,4 MB, acima do limite de 4,5 MB por resposta das funções da Vercel. Por isso o pacote tem no
-máximo 100 cartões.
+O limite de 4,5 MB por resposta das funções da Vercel é o que define o tamanho do pacote. Medição em Node 22
+com a arte-base: cada cartão ocupa cerca de 15 KB no ZIP, então 100 cartões dão 1,5 MB em 0,7 s. O pacote tem
+no máximo 100 cartões, com cerca de 3× de folga.
+
+Ao embutir a arte, a pdf-lib deixa no arquivo uma cópia sem uso do conteúdo original da página; o sistema
+remove esses objetos órfãos antes de salvar (`limpeza-do-pdf.ts`), senão cada PDF carregaria a arte em dobro.
 
 Cada PDF individual carrega a arte inteira, então uma arte enviada mais pesada aumenta o ZIP na mesma proporção.
 Quando os individuais não cabem em 3,5 MB, o ZIP sai **sem a pasta `individuais/`** e o `LEIA-ME.txt` avisa;
 o PDF do lote (que embute a arte uma única vez) tem as mesmas páginas, e a arte de um cartão continua
-disponível na página dele. O envio recusa artes que passem de 2 MB ou de 3 MB por cartão depois de processadas.
+disponível na página dele. O envio recusa artes de mais de 2 MB.
 
 ## Segurança
 
@@ -376,7 +379,7 @@ o sistema não finge que sabe. A contagem é feita depois da resposta, para não
 
 ## Testes
 
-`pnpm test` roda 222 testes contra um PostgreSQL em memória (PGlite) com as migrações reais:
+`pnpm test` roda 224 testes contra um PostgreSQL em memória (PGlite) com as migrações reais:
 
 - geração e validação de código (formato, alfabeto, unicidade, rejeição de inválidos);
 - URL canônica e configuração de domínio;

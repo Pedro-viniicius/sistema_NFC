@@ -18,11 +18,10 @@ import { obterModelo, obterModeloPorSlug, validarModelo, type ModeloDeImpressao 
 import { gerarPdfDeImpressao, gerarPdfDoCartao, verificarArteDoModelo, verificarQrDoCartao } from "./pdf";
 
 /**
- * Limite de cartões por pacote, definido por medição (Node 22, arte-base de 8 KB):
- *   100 cartões → ZIP de 2,2 MB, 0,6 s, ~30 MB de memória;
- *   250 cartões → ZIP de 5,4 MB, acima do teto de 4,5 MB por resposta das funções da Vercel.
- * Com 100 há cerca de 2× de folga. Lotes maiores são divididos em partes de até 100 cartões.
- * Se a arte definitiva for muito mais pesada que a arte-base, meça de novo antes de aumentar.
+ * Limite de cartões por pacote, definido por medição (Node 22, arte-base de 8 KB): cada cartão ocupa
+ * cerca de 15 KB no ZIP, então 100 cartões dão 1,5 MB em 0,7 s — cerca de 3× de folga em relação ao
+ * teto de 4,5 MB por resposta das funções da Vercel. Lotes maiores são divididos em partes.
+ * Artes enviadas mais pesadas são tratadas por LIMITE_DO_ZIP_BYTES, logo abaixo.
  */
 export const MAXIMO_DE_CARTOES_POR_PACOTE = 100;
 

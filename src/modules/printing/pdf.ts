@@ -7,6 +7,7 @@ import { ErroDeDominio } from "@/lib/erros";
 import { gerarMatrizDoQr, type MatrizDoQr } from "@/modules/qr/gerar";
 import { GLIFOS_DO_CODIGO, carregarArteDoModelo, descricaoDaArte } from "./arquivos-do-modelo";
 import { desenharQr } from "./desenho-do-qr";
+import { salvarSemObjetosOrfaos } from "./limpeza-do-pdf";
 import {
   MODULO_MINIMO_MM,
   geometriaDoModelo,
@@ -169,7 +170,7 @@ export async function gerarPdfDeImpressao(
   documento.setSubject(`Arte para impressão — modelo ${modelo.nome}`);
   documento.setCreator("Sistema de Cartões NFC");
   documento.setProducer("pdf-lib");
-  return documento.save();
+  return salvarSemObjetosOrfaos(documento);
 }
 
 /** Arte individual de um cartão (uma página). */

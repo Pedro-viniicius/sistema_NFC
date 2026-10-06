@@ -205,6 +205,25 @@ describe("arte enviada e o invariante do QR", () => {
   });
 });
 
+describe("tamanho do PDF gerado", () => {
+  it("o cartão não carrega a arte em dobro: o PDF fica pouco maior que a própria arte", async () => {
+    const arte = await novaArte({}, { formas: 7000 });
+    await salvarArte(db, google, arte);
+    const pdf = await gerarPdfDoCartao("K8M4T2", await obterModeloEfetivo(db, google));
+    expect(arte.bytes.length).toBeGreaterThan(150 * 1024);
+    expect(pdf.length).toBeLessThan(arte.bytes.length * 1.2);
+
+    const [pagina] = await lerPdfDeImpressao(pdf);
+    expect(pagina.conteudoDoQr).toBe(URL_PERMANENTE);
+    expect(pagina.arteEmbutida).toContain((await lerArteDoModelo(arte.bytes)).trim());
+  });
+
+  it("com a arte padrão, o cartão também não carrega conteúdo sem uso", async () => {
+    const pdf = await gerarPdfDoCartao("K8M4T2", google);
+    expect(pdf.length).toBeLessThan(13 * 1024);
+  });
+});
+
 describe("pacote com arte pesada", () => {
   function codigosUnicos(quantidade: number): string[] {
     const codigos = new Set<string>();
