@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { obterBanco } from "@/db/cliente";
-import { SeloDeStatus, TituloDaPagina, classesDoBotao, rotuloDoTipo } from "@/components/ui";
+import { Painel, SeloDeStatus, TituloDaPagina, classesDoBotao, rotuloDoTipo } from "@/components/ui";
 import { formatarDataHora } from "@/lib/datas";
 import { ErroDeDominio } from "@/lib/erros";
 import { exigirAdmin } from "@/modules/auth/sessao";
 import { buscarLotePorIdentificador } from "@/modules/batches/servico";
 import { listarCartoesDoLote } from "@/modules/cards/repositorio";
 import { getCardPublicUrl } from "@/modules/cards/url-publica";
+import { ApagarLote } from "./apagar-lote";
 
 export default async function PaginaDoLote({ params }: PageProps<"/admin/lotes/[identificador]">) {
   await exigirAdmin();
@@ -79,6 +80,20 @@ export default async function PaginaDoLote({ params }: PageProps<"/admin/lotes/[
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="mt-6">
+        <Painel
+          titulo="Apagar lote"
+          descricao="Remove o lote e todos os cartões dele. Use para lotes de teste ou gerados por engano."
+        >
+          <ApagarLote
+            identificador={lote.identificador}
+            total={cartoes.length}
+            configurados={cartoes.filter((cartao) => cartao.destinoUrl !== null).length}
+            comAcessos={cartoes.filter((cartao) => cartao.totalAcessos > 0).length}
+          />
+        </Painel>
       </div>
     </>
   );
