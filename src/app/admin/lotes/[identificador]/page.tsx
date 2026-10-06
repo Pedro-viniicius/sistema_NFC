@@ -4,13 +4,17 @@ import { obterBanco } from "@/db/cliente";
 import { Painel, SeloDeStatus, TituloDaPagina, classesDoBotao, rotuloDoTipo } from "@/components/ui";
 import { formatarDataHora } from "@/lib/datas";
 import { ErroDeDominio } from "@/lib/erros";
+import { pendenciasDaConfiguracao } from "@/modules/activation/configuracao";
+import { ehTipoComAtivacao } from "@/modules/activation/link";
 import { exigirAdmin } from "@/modules/auth/sessao";
 import { buscarLotePorIdentificador } from "@/modules/batches/servico";
 import { listarCartoesDoLote } from "@/modules/cards/repositorio";
 import { getCardPublicUrl } from "@/modules/cards/url-publica";
+import { contarContatosDoLote } from "@/modules/contacts/servico";
 import { formatarDimensoesMm } from "@/modules/templates/formato";
 import { buscarTemplateDoLote } from "@/modules/templates/producao";
 import { ApagarLote } from "./apagar-lote";
+import { AtivacaoPeloCliente } from "./ativacao-pelo-cliente";
 
 export default async function PaginaDoLote({ params }: PageProps<"/admin/lotes/[identificador]">) {
   await exigirAdmin();
@@ -28,6 +32,16 @@ export default async function PaginaDoLote({ params }: PageProps<"/admin/lotes/[
   // Lotes gerados com um template de impressão ficam presos a ele; os demais usam o modelo do sistema.
   const template = await buscarTemplateDoLote(db, lote);
   const baixar = `/admin/lotes/${lote.identificador}/grafica/baixar`;
+
+  // Ativação pelo cliente: quantos cartões já estão ativados e por que a opção pode estar indisponível.
+  const ativados = cartoes.filter((cartao) => cartao.status === "ATIVO").length;
+  const ativadosPeloCliente = await contarContatosDoLote(db, lote.identificador);
+  const pendencias = pendenciasDaConfiguracao();
+  const impedimento = !ehTipoComAtivacao(lote.tipo)
+    ? "A ativação pelo cliente só existe para lotes de Instagram ou de Google."
+    : pendencias.length > 0
+      ? `Antes de ligar, configure na Vercel: ${pendencias.join("; ")}.`
+      : null;
 
   return (
     <>
@@ -93,6 +107,40 @@ export default async function PaginaDoLote({ params }: PageProps<"/admin/lotes/[
           <code className="font-mono">lote.csv</code>.
         </p>
       )}
+
+      <div className="mb-4">
+        <Painel
+          titulo="Ativação pelo cliente"
+          descricao="Com a opção ligada, quem abrir um cartão ainda não ativado deste lote (pelo QR Code ou pelo NFC) vê o passo a passo para ativá-lo sozinho e deixa os dados de contato."
+        >
+          <AtivacaoPeloCliente
+            identificador={lote.identificador}
+            ligada={lote.ativacaoPeloCliente}
+            impedimento={impedimento}
+          />
+          <p className="mt-4 text-sm text-slate-700">
+            <strong>
+              {ativados.toLocaleString("pt-BR")} de {cartoes.length.toLocaleString("pt-BR")}
+            </strong>{" "}
+            {cartoes.length === 1 ? "cartão ativado" : "cartões ativados"}
+            {ativadosPeloCliente > 0 ? (
+              <>
+                {" · "}
+                <Link
+                  href={`/admin/contatos?lote=${lote.identificador}`}
+                  className="font-medium underline underline-offset-2"
+                >
+                  {ativadosPeloCliente} pelo próprio cliente
+                </Link>
+              </>
+            ) : null}
+          </p>
+          <p className="mt-2 text-sm text-slate-500">
+            Ligue só quando os cartões estiverem saindo para entrega: enquanto a opção estiver ligada, quem tiver um
+            cartão em mãos pode ativá-lo. Você continua podendo ativar e trocar o link de qualquer cartão pelo painel.
+          </p>
+        </Painel>
+      </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-left text-sm">

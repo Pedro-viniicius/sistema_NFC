@@ -3,6 +3,7 @@ import { obterBanco } from "@/db/cliente";
 import { Painel, TituloDaPagina, classesDoBotao, classesDoCampo } from "@/components/ui";
 import { exigirAdmin } from "@/modules/auth/sessao";
 import { obterEstatisticas } from "@/modules/cards/repositorio";
+import { contarContatosNovos } from "@/modules/contacts/servico";
 
 interface Indicador {
   rotulo: string;
@@ -12,7 +13,8 @@ interface Indicador {
 
 export default async function PaginaDoPainel() {
   await exigirAdmin();
-  const estatisticas = await obterEstatisticas(obterBanco());
+  const db = obterBanco();
+  const [estatisticas, contatosNovos] = await Promise.all([obterEstatisticas(db), contarContatosNovos(db)]);
 
   const indicadores: Indicador[] = [
     { rotulo: "Total de cartões", valor: estatisticas.total, href: "/admin/cartoes" },
@@ -38,6 +40,21 @@ export default async function PaginaDoPainel() {
           Ver cartões
         </Link>
       </div>
+
+      {contatosNovos > 0 ? (
+        <Link
+          href="/admin/contatos?situacao=NOVO"
+          className="mt-6 flex items-center justify-between gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4 text-sky-900 hover:border-sky-400"
+        >
+          <span>
+            <strong>
+              {contatosNovos} {contatosNovos === 1 ? "contato novo" : "contatos novos"}
+            </strong>{" "}
+            de clientes que ativaram o próprio cartão.
+          </span>
+          <span className="whitespace-nowrap font-medium underline underline-offset-2">Ver contatos</span>
+        </Link>
+      ) : null}
 
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {indicadores.map((indicador) => (

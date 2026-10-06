@@ -10,6 +10,9 @@ import { resumirCartao } from "@/modules/cards/apresentacao";
 import { normalizarCodigo } from "@/modules/cards/codigo";
 import { buscarCartaoPorCodigo } from "@/modules/cards/repositorio";
 import { listarModelos } from "@/modules/printing/modelos";
+import { formatarWhatsApp, linkDoWhatsApp } from "@/modules/activation/whatsapp";
+import { buscarContatoDoCartao, quemDecide } from "@/modules/contacts/servico";
+import { ROTULO_SITUACAO } from "@/modules/contacts/tipos";
 import { sugerirModelo } from "@/modules/printing/producao";
 import { formatarDimensoesMm } from "@/modules/templates/formato";
 import { buscarTemplateDoLote } from "@/modules/templates/producao";
@@ -40,6 +43,8 @@ export default async function PaginaDoCartao({ params }: PageProps<"/admin/carto
   const modeloDaArte = sugerirModelo(...tiposParaAArteDoCartao(cartao, lote));
   // Cartão de um lote gerado com template de impressão: a arte é sempre a do template do lote.
   const template = lote ? await buscarTemplateDoLote(db, lote) : null;
+  // Contato de quem ativou o cartão pela página pública (se foi o cliente quem ativou).
+  const contato = await buscarContatoDoCartao(db, cartao.id);
   const urlDoQr = `/admin/cartoes/${cartao.codigo}/qr`;
 
   return (
@@ -57,6 +62,52 @@ export default async function PaginaDoCartao({ params }: PageProps<"/admin/carto
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
+          {contato ? (
+            <Painel titulo="Quem ativou este cartão" descricao="O próprio cliente ativou o cartão e deixou estes dados.">
+              <dl className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <dt className="text-sm text-slate-500">Loja</dt>
+                  <dd className="mt-0.5 font-medium text-slate-900">{contato.loja}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-slate-500">Nome</dt>
+                  <dd className="mt-0.5 font-medium text-slate-900">{contato.nome}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-slate-500">Quem decide</dt>
+                  <dd className="mt-0.5 font-medium text-slate-900">{quemDecide(contato)}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-slate-500">WhatsApp</dt>
+                  <dd className="mt-0.5 font-medium tabular-nums text-slate-900">{formatarWhatsApp(contato.whatsapp)}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-slate-500">Ativado em</dt>
+                  <dd className="mt-0.5 font-medium text-slate-900">{formatarDataHora(contato.registradoEm)}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-slate-500">Situação</dt>
+                  <dd className="mt-0.5 font-medium text-slate-900">
+                    {ROTULO_SITUACAO[contato.situacao]} · {contato.aceitouOfertas ? "aceitou ofertas" : "não aceitou ofertas"}
+                  </dd>
+                </div>
+              </dl>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <a
+                  href={linkDoWhatsApp(contato.whatsapp)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={classesDoBotao("primario")}
+                >
+                  Abrir conversa no WhatsApp
+                </a>
+                <Link href={`/admin/contatos/${contato.id}`} className={classesDoBotao("secundario")}>
+                  Ver contato
+                </Link>
+              </div>
+            </Painel>
+          ) : null}
+
           <Painel
             titulo="URL permanente"
             descricao="É esta URL que vai no QR Code impresso e no chip NFC. Ela nunca muda, mesmo quando o destino é alterado."

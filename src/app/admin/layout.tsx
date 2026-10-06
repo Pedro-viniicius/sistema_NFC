@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LinksDeNavegacao } from "@/components/navegacao";
 import { classesDoBotao } from "@/components/ui";
+import { obterBanco } from "@/db/cliente";
 import { exigirAdmin } from "@/modules/auth/sessao";
 import { avisoDaUrlBase } from "@/modules/cards/url-publica";
+import { contarContatosNovos } from "@/modules/contacts/servico";
 import { sairAction } from "./acoes";
 
 export const metadata: Metadata = { title: "Painel — Cartões NFC" };
@@ -11,6 +13,8 @@ export const metadata: Metadata = { title: "Painel — Cartões NFC" };
 export default async function LayoutDoPainel({ children }: LayoutProps<"/admin">) {
   const admin = await exigirAdmin();
   const aviso = avisoDaUrlBase();
+  // Contador de contatos ainda não atendidos, mostrado no menu.
+  const contatosNovos = await contarContatosNovos(obterBanco());
 
   return (
     <div className="flex flex-1 flex-col">
@@ -19,7 +23,7 @@ export default async function LayoutDoPainel({ children }: LayoutProps<"/admin">
           <Link href="/admin" className="text-base font-semibold text-slate-900">
             Cartões NFC
           </Link>
-          <LinksDeNavegacao />
+          <LinksDeNavegacao contatosNovos={contatosNovos} />
           <div className="ml-auto flex items-center gap-2">
             <Link href="/admin/ativar" className={classesDoBotao("primario", "py-2")}>
               Ativar cartão
