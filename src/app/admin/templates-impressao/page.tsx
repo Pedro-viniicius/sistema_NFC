@@ -11,6 +11,10 @@ import { SeloDePadrao, SeloDoTemplate } from "./selo";
 
 export const metadata: Metadata = { title: "Templates de impressão — Cartões NFC" };
 
+// As ações desta página (testar, ativar, duplicar) leem o PDF do template no armazenamento e geram
+// o PDF final. Medido: poucos segundos mesmo com um template de 25 MB; o teto dá folga.
+export const maxDuration = 60;
+
 const LINK = "font-medium text-slate-700 underline underline-offset-2 hover:text-slate-900";
 
 export default async function PaginaDeTemplates() {

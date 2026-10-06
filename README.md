@@ -24,7 +24,7 @@ Isso é garantido em três níveis:
 ## Tecnologias
 
 Next.js 16 (App Router) · TypeScript estrito · PostgreSQL (Neon) · Drizzle ORM · Zod · Tailwind CSS 4 ·
-Vitest · pnpm · Vercel.
+pdf-lib · pdf.js (prévia no navegador) · Vercel Blob (PDFs de template) · Vitest · pnpm · Vercel.
 
 ## Rodando localmente
 
@@ -53,6 +53,8 @@ pnpm dev                          # http://localhost:3000/admin
 | `pnpm db:up` | Sobe o PostgreSQL local via Docker |
 | `pnpm admin:criar <email>` | Cria um administrador ou redefine a senha de um existente |
 | `pnpm impressao:modelos` | Recria as artes-base de impressão em `templates/` (não rode depois de trocar pela arte definitiva) |
+| `pnpm templates:fixtures` | Recria os PDFs de exemplo dos testes de template (`tests/fixtures/templates`) |
+| `pnpm templates:medir` | Mede tempo, memória e tamanho da geração de PDFs com template |
 
 Nunca altere a estrutura do banco de produção manualmente: mude o schema, rode `pnpm db:generate`,
 revise o SQL em `drizzle/` e aplique com `pnpm db:migrate`.
@@ -64,6 +66,7 @@ revise o SQL em `drizzle/` e aplique com `pnpm db:migrate`.
 | `DATABASE_URL` | Conexão PostgreSQL. No Neon, use a URL com *pooler* e `sslmode=require`. |
 | `AUTH_SECRET` | Segredo que assina a sessão do painel. Mínimo 32 caracteres (`openssl rand -base64 48`). |
 | `NEXT_PUBLIC_APP_URL` | Domínio canônico dos cartões, ex.: `https://go.meudominio.com`. **É o que vai impresso no QR e gravado no NFC.** |
+| `BLOB_READ_WRITE_TOKEN` | Acesso ao Vercel Blob, onde ficam os PDFs dos templates de impressão. Criada pela Vercel ao conectar o Blob store. Opcional em `pnpm dev` (sem ela, os PDFs vão para `.armazenamento-local/`). |
 
 `NEXT_PUBLIC_APP_URL` é fixada no momento do build: se mudar, faça um novo deploy. Em produção o sistema
 recusa `http://` e `localhost`, e o painel mostra um aviso se a URL for um endereço `.vercel.app`.
@@ -76,25 +79,31 @@ recusa `http://` e `localhost`, e o painel mostra um aviso se a URL for um ender
    `DATABASE_URL` (com pooler) automaticamente. Se já tiver um banco Neon, cadastre `DATABASE_URL` manualmente.
 3. **Variáveis:** em *Settings → Environment Variables*, cadastre `AUTH_SECRET` e `NEXT_PUBLIC_APP_URL`
    (o domínio definitivo, para todos os ambientes — assim nenhum QR sai com URL de preview).
-4. **Domínio:** em *Settings → Domains*, adicione `go.meudominio.com` e crie o CNAME indicado no seu DNS.
-5. **Região:** as funções rodam em São Paulo (`gru1`), definido em `vercel.json`. Crie o banco na mesma região
+4. **Arquivos:** crie o armazenamento dos PDFs de template (privado, na mesma região das funções):
+   ```bash
+   vercel blob create-store sistema-nfc-templates --access private --region gru1
+   ```
+   O comando conecta o store ao projeto e cria `BLOB_READ_WRITE_TOKEN`.
+5. **Domínio:** em *Settings → Domains*, adicione `go.meudominio.com` e crie o CNAME indicado no seu DNS.
+6. **Região:** as funções rodam em São Paulo (`gru1`), definido em `vercel.json`. Crie o banco na mesma região
    (Neon `sa-east-1`); se o banco ficar em outro lugar, ajuste `regions` para a região mais próxima dele.
    Isso é o que mais influencia a velocidade do redirecionamento.
-6. **Migrações:** aplique no banco de produção a partir da sua máquina:
+7. **Migrações:** aplique no banco de produção a partir da sua máquina:
    ```bash
    DATABASE_URL="<url de produção>" pnpm db:migrate
    ```
    (Alternativa: usar `pnpm db:migrate && pnpm build` como *Build Command*. Só faça isso se os deploys de preview
    usarem outro banco, ex.: um *branch* do Neon.)
-7. **Administrador:**
+8. **Administrador:**
    ```bash
    DATABASE_URL="<url de produção>" pnpm admin:criar voce@empresa.com.br
    ```
-8. **Deploy** e teste: gere um lote de 1 cartão, configure-o e acesse a URL permanente pelo celular.
-9. **Recomendado:** em *Firewall*, crie uma regra de *rate limit* para `/c/*` e para `/login`
+9. **Deploy** e teste: gere um lote de 1 cartão, configure-o e acesse a URL permanente pelo celular.
+10. **Recomendado:** em *Firewall*, crie uma regra de *rate limit* para `/c/*` e para `/login`
    (por exemplo, 60 requisições por minuto por IP). O sistema não faz rate limit por conta própria.
 
-Nada é gravado em disco: QR Codes, CSV e ZIP são gerados sob demanda e tudo que precisa persistir fica no banco.
+Nada é gravado em disco: QR Codes, PDFs, CSV e ZIP são gerados sob demanda. O que precisa persistir fica no banco;
+os PDFs dos templates de impressão ficam no Vercel Blob.
 
 ## Como usar
 
@@ -143,8 +152,28 @@ Cada pacote tem no máximo **100 cartões**; lotes maiores aparecem divididos em
 com numeração contínua. O `controle.csv` usa vírgula como separador: no Excel em português, abra por
 *Dados → De Texto/CSV*.
 
-### Usar a sua própria arte (PDF)
-*Artes* (menu do painel) → no modelo desejado, **Enviar arte própria**: escolha o PDF, informe onde fica a área
+### Usar a sua própria arte: templates de impressão
+*Templates de impressão* (menu do painel) é o caminho para artes novas. Você envia a **arte final em PDF**
+(qualquer tamanho de página, até 25 MB), indica com o mouse onde fica o espaço do QR Code, testa e ativa.
+O sistema não altera a arte: cada cartão sai como a página enviada mais o seu QR.
+
+1. **Novo template** → escolha o PDF. Ele é validado e salvo como rascunho
+   (ex.: `PDF válido · cartao_google.pdf · 1 página · 130,05 × 86,70 mm · paisagem`).
+2. Escolha o **produto** e o **nome** (ex.: "Google — Modelo 01").
+3. **Posicionar área do QR**: arraste o retângulo sobre o espaço em branco da arte, ou digite X, Y, largura e
+   altura em mm.
+4. **Testar QR** → confira a prévia e, de preferência, **baixe o PDF de teste**, imprima em 100% e leia com o celular.
+5. **Salvar e ativar** (e, se quiser, **Definir como padrão do produto**).
+
+Ao criar um lote do produto, o template padrão vem sugerido. O lote fica ligado a esse template para sempre.
+Para mudar a arte de um template já usado, use **Duplicar como nova versão**.
+
+Detalhes — requisitos do arquivo, coordenadas, armazenamento, versões e limites — em
+[docs/templates-impressao.md](docs/templates-impressao.md).
+
+### Arte do modelo do sistema (lotes sem template)
+*Artes* (menu do painel) continua valendo para os lotes criados **sem** template, que usam o modelo do sistema
+de 86 × 54 mm. No modelo desejado, **Enviar arte própria**: escolha o PDF, informe onde fica a área
 do QR Code (distância da esquerda, do topo e tamanho, em milímetros) e se o código do cartão deve ser impresso
 em preto, em branco ou não ser impresso. Depois confira em **Ver amostra (PDF)**.
 
@@ -195,18 +224,23 @@ src/
     login/                     login do painel
     admin/                     painel, cartões, ativação rápida, lotes, downloads
     admin/acoes.ts             Server Actions (autenticação + validação Zod + chamada aos módulos)
+    admin/templates-impressao/ templates de impressão: lista, envio, editor da área do QR, teste e ativação
+    api/templates-impressao/   envio direto para o Blob (token), confirmação e envio local de desenvolvimento
   modules/
     cards/                     código, URL canônica, validação de destino, status, consultas e mutações
     redirects/                 decisão de redirecionamento e respostas HTTP
     qr/                        geração de QR Code (SVG/PNG)
     batches/                   lotes e exportação CSV/ZIP
-    printing/                  arte de impressão: modelos, PDF, controle e pacote de produção
+    printing/                  arte de impressão dos lotes sem template: modelos, PDF, controle e pacote
+    templates/                 templates de impressão: validação do PDF, coordenadas, renderização, ciclo de vida
+    storage/                   armazenamento de arquivos (Vercel Blob; disco local só em desenvolvimento)
     auth/                      senha (scrypt), token de sessão, login com bloqueio
   db/                          schema Drizzle e cliente PostgreSQL
   proxy.ts                     bloqueia /admin sem sessão (o "middleware" do Next 16)
 drizzle/                       migrações SQL
 templates/                     artes fixas de impressão (PDF) e contornos das letras do código
-tests/                         utilitários de teste e cenário final
+tests/                         utilitários de teste, PDFs de exemplo (fixtures) e cenários finais
+docs/                          documentação dos templates de impressão
 ```
 
 ### Modelo de dados
@@ -225,7 +259,13 @@ tests/                         utilitários de teste e cenário final
 | `total_acessos`, `ultimo_acesso_em` | Estatística simples de uso |
 | `criado_em`, `atualizado_em`, `ativado_em` | Datas |
 
-**`lotes`** — `identificador` (`lote-2026-001`), `ano`, `sequencia`, `quantidade`, `tipo`, `descricao`.
+**`lotes`** — `identificador` (`lote-2026-001`), `ano`, `sequencia`, `quantidade`, `tipo`, `descricao`,
+`template_id` e `template_sha256` (o template de impressão com que o lote foi gerado; nulos nos lotes sem template).
+**`templates_de_impressao`** — `nome`, `tipo` (produto), `status` (`RASCUNHO`, `PRONTO`, `INATIVO`), `padrao`,
+referência e metadados do arquivo (`chave_do_arquivo`, `arquivo_nome_original`, `mime_type`, `tamanho_bytes`,
+`sha256`, `numero_de_paginas`, `rotacao`), caixas da página em pontos (`media_box`, `crop_box`, `trim_box`,
+`bleed_box`), dimensões em mm, área do QR em pontos (`qr_x_pt`, `qr_y_pt`, `qr_largura_pt`, `qr_altura_pt`),
+`qr_zona_de_silencio_modulos`, `qr_configurado_em`, `qr_testado_em`, `bloqueado_em`, `criado_em`, `atualizado_em`.
 **`artes_de_impressao`** — arte enviada pelo painel, uma por modelo: `tipo`, `pdf`, `nome_do_arquivo`,
 `tamanho_bytes`, posição do QR (`qr_x_mm`, `qr_y_mm`, `qr_tamanho_mm`) e `cor_do_codigo`.
 **`administradores`** — `email`, `senha_hash`, `tentativas_falhas`, `bloqueado_ate`.
@@ -253,6 +293,12 @@ criptográfico: cerca de 887 milhões de combinações, sem sequência previsív
 | `/admin/artes/[slug]/amostra` | Admin | Amostra (PDF) da arte em uso |
 | `/admin/lotes/[identificador]/grafica` | Admin | Tela de arquivos para a gráfica |
 | `/admin/lotes/[identificador]/grafica/baixar?arquivo=pdf\|csv\|zip&modelo=&parte=` | Admin | PDF do lote, controle e ZIP |
+| `/admin/templates-impressao`, `/novo`, `/[id]` | Admin | Templates de impressão: lista, envio e editor |
+| `/admin/templates-impressao/[id]/arquivo` | Admin | PDF original do template (privado no Blob) |
+| `/admin/templates-impressao/[id]/teste[?baixar=1]` | Admin | PDF de teste do template |
+| `POST /api/templates-impressao/upload` | Admin | Token de envio direto do navegador para o Blob |
+| `POST /api/templates-impressao/confirmar` | Admin | Valida o PDF enviado e cria o rascunho |
+| `PUT /api/templates-impressao/envio-local` | Admin | Envio em desenvolvimento (responde 404 fora do armazenamento local) |
 
 ### Comportamento de `/c/[codigo]`
 
@@ -379,7 +425,7 @@ o sistema não finge que sabe. A contagem é feita depois da resposta, para não
 
 ## Testes
 
-`pnpm test` roda 224 testes contra um PostgreSQL em memória (PGlite) com as migrações reais:
+`pnpm test` roda 371 testes contra um PostgreSQL em memória (PGlite) com as migrações reais:
 
 - geração e validação de código (formato, alfabeto, unicidade, rejeição de inválidos);
 - URL canônica e configuração de domínio;
@@ -395,7 +441,11 @@ o sistema não finge que sabe. A contagem é feita depois da resposta, para não
 - arte enviada: uso só no modelo certo, posição do QR, arte sem sangria, arquivos recusados, restauração e
   pacote com arte pesada;
 - exclusão de lote: apaga lote e cartões, exige confirmação e não afeta outros lotes;
-- cenário final: destino muda, cartão físico não.
+- cenário final: destino muda, cartão físico não;
+- templates de impressão (147 testes, com a biblioteca de PDF de verdade e arquivos reais em
+  `tests/fixtures/templates`): validação do envio, coordenadas, renderização (caixas e bytes da arte preservados,
+  QR lido da página renderizada com pdf.js + canvas e decodificado com jsQR), ciclo de vida, produção, rotas e
+  a demonstração com o cartão `K8M4T2`.
 
 ## Limitações e próximos passos
 
@@ -411,8 +461,10 @@ o sistema não finge que sabe. A contagem é feita depois da resposta, para não
 - **Histórico:** não há histórico de destinos anteriores de um cartão (apenas logs do servidor).
 - **Exclusão:** um lote pode ser apagado inteiro (com todos os seus cartões); um cartão isolado não pode ser
   excluído pelo painel — use **Desativar**. Não há lixeira: a exclusão é definitiva.
-- **Impressão:** os PDFs não são PDF/X certificados e as artes incluídas são artes-base
-  (veja "Arquivos de impressão"). Há uma arte por modelo (Google e Instagram), não por lote, e não há modelo
-  para o tipo "Outro link". Não há histórico das artes enviadas: enviar uma nova substitui a anterior.
+- **Impressão:** os PDFs não são PDF/X certificados: o sistema preserva o PDF-base e adiciona o QR, e a
+  preparação de CMYK, perfil ICC e PDF/X é feita no arquivo-base. Os **templates de impressão** têm versões,
+  histórico por lote e aceitam qualquer produto; a tela *Artes* (lotes sem template) continua com uma arte por
+  modelo, sem histórico. Templates de várias páginas, imposição em folha e detecção automática do espaço do QR
+  não existem (veja [docs/templates-impressao.md](docs/templates-impressao.md)).
 - **Domínios por tipo:** a lista de domínios aceitos para Instagram e Google fica em `src/modules/cards/destino.ts`
   e pode precisar de atualização se essas empresas criarem novos encurtadores.

@@ -17,5 +17,12 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - **Regras de negócio** ficam em `src/modules` (sem depender do Next.js); `src/app` só orquestra.
 - **Antes de cada commit:** `pnpm lint && pnpm typecheck && pnpm test`.
 - **Banco:** mudanças de estrutura só por migração (`pnpm db:generate` + `pnpm db:migrate`).
-- **Impressão:** a arte fixa fica em `templates/`; medidas e posição do QR ficam só em `src/modules/printing/modelos.ts`.
-  O gerador de PDF recebe apenas códigos de cartão, nunca o destino.
+- **Impressão (lotes sem template):** a arte fixa fica em `templates/`; medidas e posição do QR ficam só em
+  `src/modules/printing/modelos.ts`. O gerador de PDF recebe apenas códigos de cartão, nunca o destino.
+- **Templates de impressão** (`src/modules/templates`, documentação em `docs/templates-impressao.md`):
+  o PDF enviado nunca é alterado — a única coisa acrescentada é o QR. Posições são gravadas só em pontos do PDF
+  (origem embaixo, à esquerda); toda conversão passa por `coordenadas.ts`. `renderTemplatePdf` é o único
+  gerador e só aceita a URL permanente de um cartão. Um arquivo armazenado nunca é sobrescrito, e um template
+  usado por um lote não muda mais (arquivo e área do QR).
+- **Arquivos:** nada persiste no disco da Vercel. Use a interface de `src/modules/storage` (Vercel Blob privado);
+  o envio do PDF vai do navegador direto para o Blob, nunca por uma função ou Server Action.
