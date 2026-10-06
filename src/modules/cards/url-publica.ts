@@ -62,8 +62,8 @@ export function hostDoApp(): string | null {
 }
 
 /**
- * Aviso para o painel quando a URL base não parece ser o domínio definitivo.
- * Cartões impressos com a URL errada não têm conserto.
+ * Aviso para o painel quando a URL base é a do ambiente de desenvolvimento (ou está mal configurada).
+ * Um endereço .vercel.app é aceito sem aviso: é uma escolha válida de domínio para os cartões.
  */
 export function avisoDaUrlBase(): string | null {
   let host: string;
@@ -74,9 +74,6 @@ export function avisoDaUrlBase(): string | null {
   }
   if (HOSTS_LOCAIS.has(host)) {
     return "A URL base é localhost (ambiente de desenvolvimento). Não imprima cartões nem grave NFC com esta URL.";
-  }
-  if (host.endsWith(".vercel.app")) {
-    return "A URL base é um endereço .vercel.app. Configure o domínio definitivo em NEXT_PUBLIC_APP_URL antes de imprimir cartões.";
   }
   return null;
 }

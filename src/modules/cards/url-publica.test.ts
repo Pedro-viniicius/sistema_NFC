@@ -48,10 +48,10 @@ describe("URL permanente do cartão", () => {
     expect(() => obterUrlBase()).toThrow("apenas o domínio");
   });
 
-  it("avisa quando a URL base não é o domínio definitivo", () => {
+  it("avisa quando a URL base é a de desenvolvimento; um endereço .vercel.app não gera aviso", () => {
     expect(avisoDaUrlBase()).toBeNull();
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://meu-projeto.vercel.app");
-    expect(avisoDaUrlBase()).toContain(".vercel.app");
+    expect(avisoDaUrlBase()).toBeNull();
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "http://localhost:3000");
     expect(avisoDaUrlBase()).toContain("localhost");
   });

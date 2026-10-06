@@ -69,8 +69,9 @@ revise o SQL em `drizzle/` e aplique com `pnpm db:migrate`.
 | `BLOB_READ_WRITE_TOKEN` | Acesso ao Vercel Blob, onde ficam os PDFs dos templates de impressão. Criada pela Vercel ao conectar o Blob store. Opcional em `pnpm dev` (sem ela, os PDFs vão para `.armazenamento-local/`). |
 
 `NEXT_PUBLIC_APP_URL` é fixada no momento do build: se mudar, faça um novo deploy. Em produção o sistema
-recusa `http://` e `localhost`, e o painel mostra um aviso se a URL for um endereço `.vercel.app`.
+recusa `http://` e `localhost`.
 **Defina o domínio definitivo antes de imprimir o primeiro cartão** — cartão impresso com a URL errada não tem conserto.
+Um endereço `.vercel.app` funciona, mas os cartões impressos com ele dependem de o projeto continuar na Vercel com esse nome.
 
 ## Deploy na Vercel
 
