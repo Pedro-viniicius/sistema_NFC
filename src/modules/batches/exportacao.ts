@@ -34,7 +34,7 @@ export function gerarCsvDoLote(cartoes: readonly Cartao[]): string {
  *     7PN3RX.svg
  *     lote.csv
  */
-export async function gerarZipDoLote(lote: Lote, cartoes: readonly Cartao[]): Promise<Uint8Array> {
+export async function gerarZipDoLote(lote: Lote, cartoes: readonly Cartao[]): Promise<ArrayBuffer> {
   const zip = new JSZip();
   const pasta = zip.folder(lote.identificador);
   if (!pasta) throw new Error("Não foi possível criar a pasta do lote no arquivo ZIP.");
@@ -44,5 +44,5 @@ export async function gerarZipDoLote(lote: Lote, cartoes: readonly Cartao[]): Pr
   }
   pasta.file(NOME_DO_CSV, gerarCsvDoLote(cartoes));
 
-  return zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+  return zip.generateAsync({ type: "arraybuffer", compression: "DEFLATE" });
 }
