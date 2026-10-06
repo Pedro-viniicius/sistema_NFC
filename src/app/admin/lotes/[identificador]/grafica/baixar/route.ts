@@ -1,5 +1,9 @@
 // Arquivos de produção do lote:
 // GET /admin/lotes/[identificador]/grafica/baixar?arquivo=pdf|csv|zip&modelo=google|instagram&parte=1
+//
+// Lotes gerados com um template de impressão usam SEMPRE o template do lote (`modelo` e `parte` não
+// se aplicam). Os demais seguem pelo caminho anterior, inalterado.
+import type { TemplateDeImpressao } from "@/db/schema";
 import { obterBanco } from "@/db/cliente";
 import { registrarLog } from "@/lib/log";
 import { exigirAdminNaRota } from "@/modules/auth/rota";
@@ -13,14 +17,59 @@ import {
   carregarLoteParaProducao,
   planejarPacoteDoLote,
   resolverModeloDoLote,
+  type LoteParaProducao,
 } from "@/modules/printing/servico";
+import { obterArmazenamento } from "@/modules/storage";
+import {
+  buscarTemplateDoLote,
+  carregarArquivoDoLote,
+  gerarCsvDeControleComTemplate,
+  gerarPdfDoPacoteComTemplate,
+  gerarZipComTemplate,
+  planejarPacoteComTemplate,
+} from "@/modules/templates/producao";
 import { respostaDeDownload, respostaDeErroDeDownload } from "@/app/admin/downloads";
 
 const ARQUIVOS = ["pdf", "csv", "zip"] as const;
 type Arquivo = (typeof ARQUIVOS)[number];
 
+export const runtime = "nodejs";
+// Medido: 1.000 cartões com um template de 25 MB levam cerca de 1 s (PDF) e poucos segundos (ZIP).
+// O teto cobre também o tempo de ler o template no armazenamento.
+export const maxDuration = 60;
+
 function arquivoPedido(valor: string | null): Arquivo {
   return ARQUIVOS.find((arquivo) => arquivo === valor) ?? "zip";
+}
+
+async function baixarComTemplate(
+  { lote, cartoes }: LoteParaProducao,
+  template: TemplateDeImpressao,
+  arquivo: Arquivo,
+  adminId: string,
+): Promise<Response> {
+  // O plano valida tudo antes de qualquer arquivo ser gerado.
+  const pacote = planejarPacoteComTemplate(
+    lote,
+    cartoes.map((cartao) => cartao.codigo),
+    template,
+  );
+  registrarLog("info", "impressao.arquivo_gerado", {
+    pacote: pacote.nome,
+    arquivo,
+    cartoes: pacote.itens.length,
+    templateId: template.id,
+    adminId,
+  });
+
+  if (arquivo === "csv") {
+    return respostaDeDownload(gerarCsvDeControleComTemplate(pacote), "csv", `${pacote.nome}-${NOME_DO_CSV_DE_CONTROLE}`);
+  }
+  // O arquivo do template é lido do armazenamento uma única vez por requisição.
+  const arte = await carregarArquivoDoLote(obterArmazenamento(), lote, template);
+  return arquivo === "pdf"
+    ? respostaDeDownload(await gerarPdfDoPacoteComTemplate(pacote, arte), "pdf", `${pacote.nome}.pdf`)
+    : respostaDeDownload(await gerarZipComTemplate(pacote, arte), "zip", `${pacote.nome}.zip`);
 }
 
 export async function GET(
@@ -38,6 +87,9 @@ export async function GET(
     const { identificador } = await contexto.params;
     const db = obterBanco();
     const lote = await carregarLoteParaProducao(db, identificador);
+    const template = await buscarTemplateDoLote(db, lote.lote);
+    if (template) return await baixarComTemplate(lote, template, arquivo, admin.id);
+
     const modelo = await resolverModeloDoLote(db, lote.lote, parametros.get("modelo"));
     // O plano valida tudo antes de qualquer arquivo ser gerado.
     const pacote = await planejarPacoteDoLote(lote, modelo, parte);

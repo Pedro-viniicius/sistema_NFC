@@ -1,8 +1,13 @@
 // Arte de impressão de um cartão: GET /admin/cartoes/[codigo]/impressao?modelo=google|instagram&ver=1
+// Cartões de lotes gerados com template usam o template do lote (o parâmetro `modelo` é ignorado).
 import { obterBanco } from "@/db/cliente";
 import { exigirAdminNaRota } from "@/modules/auth/rota";
-import { gerarArteDoCartao } from "@/modules/printing/servico";
+import { gerarArquivoDeImpressaoDoCartao } from "@/modules/printing/servico";
+import { obterArmazenamento } from "@/modules/storage";
 import { respostaDeDownload, respostaDeErroDeDownload } from "@/app/admin/downloads";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
 export async function GET(
   requisicao: Request,
@@ -14,9 +19,14 @@ export async function GET(
   const parametros = new URL(requisicao.url).searchParams;
   try {
     const { codigo } = await contexto.params;
-    const arte = await gerarArteDoCartao(obterBanco(), codigo, parametros.get("modelo"));
+    const arte = await gerarArquivoDeImpressaoDoCartao(
+      obterBanco(),
+      codigo,
+      parametros.get("modelo"),
+      obterArmazenamento,
+    );
     return respostaDeDownload(
-      new Uint8Array(arte.pdf),
+      arte.pdf,
       "pdf",
       arte.nomeDoArquivo,
       parametros.has("ver") ? "inline" : "attachment",

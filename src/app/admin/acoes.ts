@@ -6,10 +6,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { obterBanco } from "@/db/cliente";
-import type { Banco } from "@/db/tipos";
 import { ErroDeDominio } from "@/lib/erros";
-import { mensagemDoErro, registrarLog } from "@/lib/log";
-import { encerrarSessao, exigirAdmin, type AdminAutenticado } from "@/modules/auth/sessao";
+import { registrarLog } from "@/lib/log";
+import { encerrarSessao, exigirAdmin } from "@/modules/auth/sessao";
 import { criarLote, esquemaDeNovoLote, excluirLote, type LoteExcluido } from "@/modules/batches/servico";
 import { resumirCartao, type CartaoResumo } from "@/modules/cards/apresentacao";
 import { extrairCodigo } from "@/modules/cards/codigo";
@@ -29,27 +28,8 @@ import {
   salvarArte,
 } from "@/modules/printing/artes";
 import { obterModeloPorSlug, type ModeloDeImpressao } from "@/modules/printing/modelos";
+import { executar, mensagemParaOAdmin } from "./executar-acao";
 import type { EstadoDeFormulario, ResultadoDaAcao } from "./tipos-de-acao";
-
-const ERRO_INESPERADO = "Ocorreu um erro inesperado. Tente novamente.";
-
-function mensagemParaOAdmin(erro: unknown): string {
-  if (erro instanceof ErroDeDominio) return erro.message;
-  if (erro instanceof z.ZodError) return erro.issues[0]?.message ?? "Dados inválidos.";
-  registrarLog("erro", "admin.acao_falhou", { mensagem: mensagemDoErro(erro) });
-  return ERRO_INESPERADO;
-}
-
-async function executar<T>(
-  operacao: (db: Banco, admin: AdminAutenticado) => Promise<T>,
-): Promise<ResultadoDaAcao<T>> {
-  const admin = await exigirAdmin();
-  try {
-    return { ok: true, dados: await operacao(obterBanco(), admin) };
-  } catch (erro) {
-    return { ok: false, erro: mensagemParaOAdmin(erro) };
-  }
-}
 
 function atualizarPainel(): void {
   revalidatePath("/admin", "layout");
@@ -136,16 +116,20 @@ export async function criarLoteAction(
 
   let identificador: string;
   try {
+    const template = formulario.get("templateId");
     const dados = esquemaDeNovoLote.parse({
       quantidade: formulario.get("quantidade"),
       tipo: ehTipoDestino(tipo) ? tipo : null,
       descricao: formulario.get("descricao") ?? "",
+      // Vazio = lote sem template (modelo do sistema). A regra do template é conferida no servidor.
+      templateId: typeof template === "string" && template.length > 0 ? template : null,
     });
     const { lote } = await criarLote(obterBanco(), dados);
     identificador = lote.identificador;
     registrarLog("info", "admin.lote_criado", {
       lote: identificador,
       quantidade: lote.quantidade,
+      templateId: lote.templateId,
       adminId: admin.id,
     });
   } catch (erro) {
