@@ -4,7 +4,7 @@
 // o QR é sempre a URL permanente, obtida pelo módulo de QR a partir de getCardPublicUrl().
 import { PDFDocument, cmyk, type PDFEmbeddedPage, type PDFPage } from "pdf-lib";
 import { ErroDeDominio } from "@/lib/erros";
-import { gerarMatrizDoQr } from "@/modules/qr/gerar";
+import { gerarMatrizDoQr, type MatrizDoQr } from "@/modules/qr/gerar";
 import { GLIFOS_DO_CODIGO, PASTA_DOS_MODELOS, carregarArteDoModelo } from "./arquivos-do-modelo";
 import { desenharQr } from "./desenho-do-qr";
 import {
@@ -59,6 +59,23 @@ async function abrirArte(modelo: ModeloDeImpressao, geometria: GeometriaDoModelo
   return pagina;
 }
 
+/** Confere, sem gerar nada, se a arte do modelo existe, é um PDF de uma página e tem o tamanho certo. */
+export async function verificarArteDoModelo(modelo: ModeloDeImpressao): Promise<void> {
+  await abrirArte(modelo, geometriaDoModelo(modelo));
+}
+
+/** Confere se o QR do cartão cabe na área do modelo com módulos de tamanho legível. */
+export function verificarQrDoCartao(codigo: string, modelo: ModeloDeImpressao): MatrizDoQr {
+  const matriz = gerarMatrizDoQr(codigo);
+  if (tamanhoDoModuloMm(modelo, matriz) < MODULO_MINIMO_MM) {
+    throw falha(
+      `O QR Code do cartão ${codigo} ficaria com módulos menores que ${MODULO_MINIMO_MM} mm ` +
+        `na área de ${modelo.qr.tamanhoMm} mm do modelo ${modelo.nome}. Aumente a área do QR ou use um domínio mais curto.`,
+    );
+  }
+  return matriz;
+}
+
 function desenharCodigo(pagina: PDFPage, codigo: string, modelo: ModeloDeImpressao, geometria: GeometriaDoModelo): void {
   if (!modelo.codigo) return;
   const { corte } = geometria;
@@ -79,13 +96,7 @@ function adicionarPagina(
   modelo: ModeloDeImpressao,
   geometria: GeometriaDoModelo,
 ): void {
-  const matriz = gerarMatrizDoQr(codigo);
-  if (tamanhoDoModuloMm(modelo, matriz) < MODULO_MINIMO_MM) {
-    throw falha(
-      `O QR Code do cartão ${codigo} ficaria com módulos menores que ${MODULO_MINIMO_MM} mm ` +
-        `na área de ${modelo.qr.tamanhoMm} mm do modelo ${modelo.nome}. Aumente a área do QR ou use um domínio mais curto.`,
-    );
-  }
+  const matriz = verificarQrDoCartao(codigo, modelo);
 
   const pagina = documento.addPage([geometria.larguraPt, geometria.alturaPt]);
   const { corte } = geometria;
