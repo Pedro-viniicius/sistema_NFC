@@ -143,6 +143,27 @@ Cada pacote tem no máximo **100 cartões**; lotes maiores aparecem divididos em
 com numeração contínua. O `controle.csv` usa vírgula como separador: no Excel em português, abra por
 *Dados → De Texto/CSV*.
 
+### Usar a sua própria arte (PDF)
+*Artes* (menu do painel) → no modelo desejado, **Enviar arte própria**: escolha o PDF, informe onde fica a área
+do QR Code (distância da esquerda, do topo e tamanho, em milímetros) e se o código do cartão deve ser impresso
+em preto, em branco ou não ser impresso. Depois confira em **Ver amostra (PDF)**.
+
+- O PDF deve ter **uma página** de **92 × 60 mm** (86 × 54 mm + 3 mm de sangria) ou **86 × 54 mm** (sem sangria),
+  até 2 MB, sem senha e sem marcas de corte. O sistema não redimensiona a arte.
+- Deixe livre na arte a área do QR Code: o sistema desenha ali um quadrado branco com o QR dentro.
+- A arte vale para todos os cartões do modelo, inclusive lotes já criados.
+- **Restaurar arte padrão** volta à arte-base do sistema.
+
+Se o arquivo for recusado, a mensagem diz o motivo (não é PDF, tamanho diferente, mais de uma página, QR fora da
+área etc.) e a arte anterior continua valendo.
+
+### Apagar um lote
+Página do lote → **Apagar lote** → digite o identificador do lote para confirmar. O lote e **todos os cartões
+dele** são apagados e não há como desfazer: os QR Codes e chips NFC desses cartões passam a responder
+"cartão não encontrado", mesmo que já estejam impressos ou vendidos. A tela avisa quantos cartões do lote
+já estão configurados ou já receberam acessos. Use para lotes de teste ou gerados por engano.
+Se o lote apagado era o mais recente do ano, o próximo lote criado reutiliza o mesmo número.
+
 ### Obter a URL para gravar no NFC
 Página do cartão → bloco **URL permanente** → **Copiar URL permanente**. É a mesma URL da coluna `url` do `lote.csv`.
 Grave exatamente essa URL no chip (registro NDEF do tipo URL), com um app como o *NFC Tools*.
@@ -205,6 +226,8 @@ tests/                         utilitários de teste e cenário final
 | `criado_em`, `atualizado_em`, `ativado_em` | Datas |
 
 **`lotes`** — `identificador` (`lote-2026-001`), `ano`, `sequencia`, `quantidade`, `tipo`, `descricao`.
+**`artes_de_impressao`** — arte enviada pelo painel, uma por modelo: `tipo`, `pdf`, `nome_do_arquivo`,
+`tamanho_bytes`, posição do QR (`qr_x_mm`, `qr_y_mm`, `qr_tamanho_mm`) e `cor_do_codigo`.
 **`administradores`** — `email`, `senha_hash`, `tentativas_falhas`, `bloqueado_ate`.
 
 Status e tipo usam `text` + `CHECK` em vez de ENUM. O banco também garante que um cartão **Ativo** sempre tem destino.
@@ -226,6 +249,8 @@ criptográfico: cerca de 887 milhões de combinações, sem sequência previsív
 | `/admin/lotes`, `/admin/lotes/novo`, `/admin/lotes/[identificador]` | Admin | Lotes |
 | `/admin/lotes/[identificador]/exportar?formato=zip\|csv` | Admin | QR Codes do lote (SVG) e `lote.csv` |
 | `/admin/cartoes/[codigo]/impressao?modelo=google\|instagram` | Admin | Arte final do cartão (PDF) |
+| `/admin/artes` | Admin | Envio e restauração da arte de cada modelo |
+| `/admin/artes/[slug]/amostra` | Admin | Amostra (PDF) da arte em uso |
 | `/admin/lotes/[identificador]/grafica` | Admin | Tela de arquivos para a gráfica |
 | `/admin/lotes/[identificador]/grafica/baixar?arquivo=pdf\|csv\|zip&modelo=&parte=` | Admin | PDF do lote, controle e ZIP |
 
@@ -287,19 +312,19 @@ A arte segue o **tipo do lote** (que define o adesivo fabricado); cartão sem lo
 Em qualquer download é possível escolher o modelo com `?modelo=google|instagram`. Tipos sem arte
 ("Outro link" ou sem tipo) exigem essa escolha.
 
-### Trocar a arte-base pela arte definitiva
-As artes incluídas são **artes-base neutras**, geradas por `pnpm impressao:modelos`, com texto convertido em curvas
-e sem logotipos oficiais (Google e Instagram são marcas registradas; a identidade definitiva deve vir do designer,
-seguindo as regras de cada marca). Para usar a arte final:
+### Arte padrão e arte enviada
+As artes de `templates/` são **artes-base neutras**, geradas por `pnpm impressao:modelos`, com texto convertido em
+curvas e sem logotipos oficiais (Google e Instagram são marcas registradas; a identidade definitiva deve vir do
+designer, seguindo as regras de cada marca).
 
-1. exporte um PDF de **uma página** com exatamente **92 × 60 mm** (86 × 54 mm + 3 mm de sangria), de preferência
-   com textos em curvas e cores em CMYK, deixando livre a área do QR;
-2. substitua `templates/google.pdf` ou `templates/instagram.pdf`;
-3. se a posição do QR ou do código mudar, ajuste `src/modules/printing/modelos.ts`;
-4. rode `pnpm test` e confira o PDF de um cartão.
+A arte definitiva é enviada pelo painel, em **Artes** (veja "Usar a sua própria arte"). Ela fica no banco
+(tabela `artes_de_impressao`), porque a Vercel não tem disco persistente, e passa a valer no lugar da arte-base
+junto com a posição do QR informada no envio. O código do cartão fica sempre centralizado logo abaixo do QR.
 
-Se o tamanho do arquivo não bater com o modelo, a geração falha com uma mensagem clara em vez de redimensionar.
-Envio de arte pelo painel (upload) não existe nesta versão.
+Antes de gravar, o sistema gera de verdade um cartão de amostra com o PDF enviado. Se o arquivo não for um PDF
+válido de uma página, tiver tamanho diferente de 92 × 60 mm ou 86 × 54 mm, deixar o QR fora da área segura ou
+com módulos menores que 0,5 mm, nada é salvo. Arte sem sangria é aceita com aviso: ela é posicionada dentro do
+corte e a faixa de sangria fica sem impressão.
 
 ### Limitações de pré-impressão (PDF/X e CMYK)
 O sistema entrega PDF vetorial, com dimensões físicas corretas, sangria, caixas de corte e QR vetorial,
@@ -314,9 +339,14 @@ Tudo é gerado em memória a partir do banco e devolvido como download; nada é 
 dependência de binários do sistema. As artes de `templates/` são empacotadas com as funções do painel
 (`outputFileTracingIncludes` em `next.config.ts`).
 
-Medição em Node 22: 100 cartões → ZIP de 2,2 MB em 0,6 s, com cerca de 30 MB de memória; 250 cartões → 5,4 MB,
-acima do limite de 4,5 MB por resposta das funções da Vercel. Por isso o pacote tem no máximo 100 cartões.
-Uma arte definitiva muito mais pesada que a arte-base aumenta o ZIP na mesma proporção: meça antes de subir o limite.
+Medição em Node 22 com a arte-base: 100 cartões → ZIP de 2,2 MB em 0,6 s, com cerca de 30 MB de memória;
+250 cartões → 5,4 MB, acima do limite de 4,5 MB por resposta das funções da Vercel. Por isso o pacote tem no
+máximo 100 cartões.
+
+Cada PDF individual carrega a arte inteira, então uma arte enviada mais pesada aumenta o ZIP na mesma proporção.
+Quando os individuais não cabem em 3,5 MB, o ZIP sai **sem a pasta `individuais/`** e o `LEIA-ME.txt` avisa;
+o PDF do lote (que embute a arte uma única vez) tem as mesmas páginas, e a arte de um cartão continua
+disponível na página dele. O envio recusa artes que passem de 2 MB ou de 3 MB por cartão depois de processadas.
 
 ## Segurança
 
@@ -346,7 +376,7 @@ o sistema não finge que sabe. A contagem é feita depois da resposta, para não
 
 ## Testes
 
-`pnpm test` roda 200 testes contra um PostgreSQL em memória (PGlite) com as migrações reais:
+`pnpm test` roda 222 testes contra um PostgreSQL em memória (PGlite) com as migrações reais:
 
 - geração e validação de código (formato, alfabeto, unicidade, rejeição de inválidos);
 - URL canônica e configuração de domínio;
@@ -359,6 +389,9 @@ o sistema não finge que sabe. A contagem é feita depois da resposta, para não
 - impressão: conversão mm → pontos, dimensões e caixas do PDF, posição e conteúdo do QR lido de dentro do PDF,
   arte correta por modelo, PDF do lote, controle, ZIP, limite por pacote e downloads sem sessão;
 - regressão crítica de impressão: trocar o destino não altera o QR do PDF;
+- arte enviada: uso só no modelo certo, posição do QR, arte sem sangria, arquivos recusados, restauração e
+  pacote com arte pesada;
+- exclusão de lote: apaga lote e cartões, exige confirmação e não afeta outros lotes;
 - cenário final: destino muda, cartão físico não.
 
 ## Limitações e próximos passos
@@ -373,8 +406,10 @@ o sistema não finge que sabe. A contagem é feita depois da resposta, para não
 - **Administradores:** todos têm o mesmo nível de acesso; criação e troca de senha são feitas por `pnpm admin:criar`.
 - **Sessão:** não há encerramento remoto de uma sessão específica (trocar `AUTH_SECRET` encerra todas).
 - **Histórico:** não há histórico de destinos anteriores de um cartão (apenas logs do servidor).
-- **Exclusão:** cartões e lotes não podem ser excluídos pelo painel; use **Desativar**.
+- **Exclusão:** um lote pode ser apagado inteiro (com todos os seus cartões); um cartão isolado não pode ser
+  excluído pelo painel — use **Desativar**. Não há lixeira: a exclusão é definitiva.
 - **Impressão:** os PDFs não são PDF/X certificados e as artes incluídas são artes-base
-  (veja "Arquivos de impressão"). Não há envio de arte pelo painel nem modelo para o tipo "Outro link".
+  (veja "Arquivos de impressão"). Há uma arte por modelo (Google e Instagram), não por lote, e não há modelo
+  para o tipo "Outro link". Não há histórico das artes enviadas: enviar uma nova substitui a anterior.
 - **Domínios por tipo:** a lista de domínios aceitos para Instagram e Google fica em `src/modules/cards/destino.ts`
   e pode precisar de atualização se essas empresas criarem novos encurtadores.
